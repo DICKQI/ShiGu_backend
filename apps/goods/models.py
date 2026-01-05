@@ -14,11 +14,6 @@ class IP(models.Model):
         db_index=True,
         verbose_name="作品名",
     )
-    short_name = models.CharField(
-        max_length=50,
-        verbose_name="简称 / 搜索关键字",
-        help_text="例如：星铁、HSR",
-    )
 
     class Meta:
         verbose_name = "IP作品"
@@ -84,7 +79,7 @@ class Character(models.Model):
         unique_together = ("ip", "name")
 
     def __str__(self):
-        return f"{self.ip.short_name or self.ip.name} - {self.name}"
+        return f"{self.ip.name} - {self.name}"
 
 
 class Category(models.Model):

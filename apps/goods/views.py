@@ -2,8 +2,14 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, viewsets
 from rest_framework.throttling import ScopedRateThrottle
 
-from .models import Goods
-from .serializers import GoodsDetailSerializer, GoodsListSerializer
+from .models import Category, Character, Goods, IP
+from .serializers import (
+    CategorySimpleSerializer,
+    CharacterSimpleSerializer,
+    GoodsDetailSerializer,
+    GoodsListSerializer,
+    IPSimpleSerializer,
+)
 
 
 class GoodsViewSet(viewsets.ModelViewSet):
@@ -43,11 +49,10 @@ class GoodsViewSet(viewsets.ModelViewSet):
 
     # 轻量搜索：
     # - 对 Goods.name 走索引（已在模型上 db_index=True）
-    # - 同时支持按 IP 名称 / 简称 / 多关键词(IPKeyword) 搜索
+    # - 同时支持按 IP 名称 / 多关键词(IPKeyword) 搜索
     search_fields = (
         "name",
         "ip__name",
-        "ip__short_name",
         "ip__keywords__value",
     )
 
@@ -104,3 +109,66 @@ class GoodsViewSet(viewsets.ModelViewSet):
 
         serializer.save()
 
+
+class IPViewSet(viewsets.ModelViewSet):
+    """
+    IP作品CRUD接口。
+
+    - list: 获取所有IP作品列表
+    - retrieve: 获取单个IP作品详情
+    - create: 创建新IP作品
+    - update: 更新IP作品
+    - partial_update: 部分更新IP作品
+    - destroy: 删除IP作品
+    """
+
+    queryset = IP.objects.all().order_by("name")
+    serializer_class = IPSimpleSerializer
+    filter_backends = (DjangoFilterBackend, filters.SearchFilter)
+    search_fields = ("name", "keywords__value")
+    filterset_fields = {
+        "name": ["exact", "icontains"],
+    }
+
+
+class CharacterViewSet(viewsets.ModelViewSet):
+    """
+    角色CRUD接口。
+
+    - list: 获取所有角色列表，支持按IP过滤
+    - retrieve: 获取单个角色详情
+    - create: 创建新角色
+    - update: 更新角色
+    - partial_update: 部分更新角色
+    - destroy: 删除角色
+    """
+
+    queryset = Character.objects.all().select_related("ip").order_by("ip__name", "name")
+    serializer_class = CharacterSimpleSerializer
+    filter_backends = (DjangoFilterBackend, filters.SearchFilter)
+    search_fields = ("name", "ip__name", "ip__keywords__value")
+    filterset_fields = {
+        "ip": ["exact"],
+        "name": ["exact", "icontains"],
+    }
+
+
+class CategoryViewSet(viewsets.ModelViewSet):
+    """
+    品类CRUD接口。
+
+    - list: 获取所有品类列表
+    - retrieve: 获取单个品类详情
+    - create: 创建新品类
+    - update: 更新品类
+    - partial_update: 部分更新品类
+    - destroy: 删除品类
+    """
+
+    queryset = Category.objects.all().order_by("name")
+    serializer_class = CategorySimpleSerializer
+    filter_backends = (DjangoFilterBackend, filters.SearchFilter)
+    search_fields = ("name",)
+    filterset_fields = {
+        "name": ["exact", "icontains"],
+    }

@@ -6,15 +6,22 @@ from .models import Category, Character, Goods, GuziImage, IP
 class IPSimpleSerializer(serializers.ModelSerializer):
     class Meta:
         model = IP
-        fields = ("id", "name", "short_name")
+        fields = ("id", "name")
 
 
 class CharacterSimpleSerializer(serializers.ModelSerializer):
     ip = IPSimpleSerializer(read_only=True)
+    ip_id = serializers.PrimaryKeyRelatedField(
+        queryset=IP.objects.all(),
+        source="ip",
+        write_only=True,
+        required=True,
+        help_text="所属IP作品ID",
+    )
 
     class Meta:
         model = Character
-        fields = ("id", "name", "ip")
+        fields = ("id", "name", "ip", "ip_id", "avatar")
 
 
 class CategorySimpleSerializer(serializers.ModelSerializer):

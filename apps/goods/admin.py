@@ -11,8 +11,8 @@ class IPKeywordInline(admin.TabularInline):
 
 @admin.register(IP)
 class IPAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "short_name")
-    search_fields = ("name", "short_name", "keywords__value")
+    list_display = ("id", "name")
+    search_fields = ("name", "keywords__value")
     ordering = ("name",)
     inlines = [IPKeywordInline]
 
@@ -21,7 +21,7 @@ class IPAdmin(admin.ModelAdmin):
 class CharacterAdmin(admin.ModelAdmin):
     list_display = ("id", "name", "ip")
     list_filter = ("ip",)
-    search_fields = ("name", "ip__name", "ip__short_name")
+    search_fields = ("name", "ip__name", "ip__keywords__value")
     autocomplete_fields = ("ip",)
     ordering = ("ip__name", "name")
 
@@ -67,7 +67,7 @@ class GoodsAdmin(admin.ModelAdmin):
     search_fields = (
         "name",
         "ip__name",
-        "ip__short_name",
+        "ip__keywords__value",
         "character__name",
         "category__name",
         "location__path_name",

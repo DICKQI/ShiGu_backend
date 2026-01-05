@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     # 第三方
     'rest_framework',
     'django_filters',
+    'corsheaders',  # 跨域支持
     # 本地应用
     "apps.goods.apps.GoodsConfig",
     "apps.location.apps.LocationConfig"
@@ -47,6 +48,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # CORS中间件，需要放在CommonMiddleware之前
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -122,6 +124,12 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Media files (User uploaded files)
+# https://docs.djangoproject.com/en/6.0/topics/files/
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 
 # DRF 统一配置
@@ -139,3 +147,42 @@ REST_FRAMEWORK = {
         "goods_search": "60/minute",
     },
 }
+
+# CORS 跨域配置
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # React默认端口
+    "http://localhost:5173",  # Vite默认端口
+    "http://localhost:8080",  # Vue CLI默认端口
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:8080",
+]
+
+# 允许所有来源（仅开发环境使用，生产环境请使用上面的CORS_ALLOWED_ORIGINS）
+# CORS_ALLOW_ALL_ORIGINS = True
+
+# 允许携带凭证（cookies, authorization headers等）
+CORS_ALLOW_CREDENTIALS = True
+
+# 允许的HTTP方法
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+# 允许的请求头
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
