@@ -27,6 +27,10 @@
     - 多维关联：IP / 角色 / 品类 / 物理位置（`StorageNode`）
     - 基础资产字段：名称、数量、购入单价、入手时间、是否官谷、状态（在馆 / 出街中 / 已售出）、备注
     - 图片：主图 + 补充图片（`GuziImage`，如背板细节、瑕疵点等）
+  - **基础数据 CRUD 接口**
+    - `IPViewSet`：IP作品的完整 CRUD（列表、详情、创建、更新、删除），支持搜索和过滤。
+    - `CharacterViewSet`：角色的完整 CRUD，支持按 IP 过滤和搜索，创建/更新时使用 `ip_id` 字段。
+    - `CategoryViewSet`：品类的完整 CRUD，支持搜索和过滤。
   - **检索接口（`GoodsViewSet`）**
     - 列表接口使用「瘦身」序列化器：满足检索页展示，减少无用字段。
     - 详情接口提供完整字段 + 补充图。
@@ -45,11 +49,29 @@
 
 - **API 路由与限流**
   - 所有核心接口均在 `/api/` 前缀下提供：
-    - `GET /api/goods/`：谷子列表检索。
-    - `GET /api/goods/{id}/`：谷子详情。
-    - `POST /api/goods/` 等：资产的 CRUD（视具体权限控制而定）。
-    - `GET /api/location/nodes/`：收纳节点列表。
-    - `GET /api/location/tree/`：收纳位置树数据下发。
+    - **基础数据 CRUD**：
+      - `GET /api/ips/`：IP作品列表（支持搜索和过滤）
+      - `GET /api/ips/{id}/`：IP作品详情
+      - `POST /api/ips/`：创建IP作品
+      - `PUT/PATCH /api/ips/{id}/`：更新IP作品
+      - `DELETE /api/ips/{id}/`：删除IP作品
+      - `GET /api/characters/`：角色列表（支持按IP过滤和搜索）
+      - `GET /api/characters/{id}/`：角色详情
+      - `POST /api/characters/`：创建角色（需提供 `ip_id`）
+      - `PUT/PATCH /api/characters/{id}/`：更新角色
+      - `DELETE /api/characters/{id}/`：删除角色
+      - `GET /api/categories/`：品类列表（支持搜索和过滤）
+      - `GET /api/categories/{id}/`：品类详情
+      - `POST /api/categories/`：创建品类
+      - `PUT/PATCH /api/categories/{id}/`：更新品类
+      - `DELETE /api/categories/{id}/`：删除品类
+    - **谷子检索**：
+      - `GET /api/goods/`：谷子列表检索。
+      - `GET /api/goods/{id}/`：谷子详情。
+      - `POST /api/goods/` 等：资产的 CRUD（视具体权限控制而定）。
+    - **收纳位置**：
+      - `GET /api/location/nodes/`：收纳节点列表。
+      - `GET /api/location/tree/`：收纳位置树数据下发。
   - 统一 DRF 配置中启用了：
     - `django_filters` 和 `SearchFilter` 作为默认过滤后端。
     - 针对谷子检索接口的 `ScopedRateThrottle`（默认 `goods_search: 60/minute`），以适配前端高频搜索。
@@ -63,9 +85,11 @@
   - `ShiGu/urls.py`：项目路由，集成 DRF `DefaultRouter`。
 - **应用层**
   - `apps/goods/`：谷子核心域模型及 API：
-    - `models.py`：`IP` / `Character` / `Category` / `Goods` / `GuziImage`。
-    - `serializers.py`：列表 / 详情用序列化器及关联对象简化视图。
-    - `views.py`：`GoodsViewSet`，包含高性能查询、过滤、搜索、限流与简单幂等写入逻辑。
+    - `models.py`：`IP` / `IPKeyword` / `Character` / `Category` / `Goods` / `GuziImage`。
+    - `serializers.py`：列表 / 详情用序列化器及关联对象简化视图，支持基础数据的 CRUD 操作。
+    - `views.py`：
+      - `IPViewSet` / `CharacterViewSet` / `CategoryViewSet`：基础数据的完整 CRUD 接口。
+      - `GoodsViewSet`：包含高性能查询、过滤、搜索、限流与简单幂等写入逻辑。
   - `apps/location/`：物理收纳节点模型及 API：
     - `models.py`：自关联 `StorageNode`。
     - `serializers.py`：基础与树结构下发序列化器。
@@ -132,6 +156,31 @@
 
 以下为部分核心接口示例，实际字段以序列化器为准：
 
+### 基础数据 CRUD
+
+- **IP作品管理**
+  - **GET** `/api/ips/`：获取IP作品列表（支持 `?search=关键词` 和 `?name=作品名` 过滤）
+  - **GET** `/api/ips/{id}/`：获取IP作品详情
+  - **POST** `/api/ips/`：创建IP作品（请求体：`{"name": "崩坏：星穹铁道"}`）
+  - **PUT/PATCH** `/api/ips/{id}/`：更新IP作品
+  - **DELETE** `/api/ips/{id}/`：删除IP作品
+
+- **角色管理**
+  - **GET** `/api/characters/`：获取角色列表（支持 `?ip=1` 按IP过滤，`?search=角色名` 搜索）
+  - **GET** `/api/characters/{id}/`：获取角色详情
+  - **POST** `/api/characters/`：创建角色（请求体：`{"name": "流萤", "ip_id": 1, "avatar": null}`）
+  - **PUT/PATCH** `/api/characters/{id}/`：更新角色
+  - **DELETE** `/api/characters/{id}/`：删除角色
+
+- **品类管理**
+  - **GET** `/api/categories/`：获取品类列表（支持 `?search=品类名` 搜索）
+  - **GET** `/api/categories/{id}/`：获取品类详情
+  - **POST** `/api/categories/`：创建品类（请求体：`{"name": "吧唧"}`）
+  - **PUT/PATCH** `/api/categories/{id}/`：更新品类
+  - **DELETE** `/api/categories/{id}/`：删除品类
+
+### 谷子检索
+
 - **谷子列表**
 
   - **GET** `/api/goods/`
@@ -148,6 +197,8 @@
   - **GET** `/api/goods/{id}/`
   - 返回谷子的完整信息（基础信息、价格、时间、位置、备注、补充图片等）。
 
+### 收纳位置
+
 - **收纳节点列表 / 创建**
 
   - **GET / POST** `/api/location/nodes/`
@@ -157,6 +208,8 @@
 
   - **GET** `/api/location/tree/`
   - 返回带 `parent` 与 `path_name` 的扁平节点列表，前端可在内存中构建树。
+
+> 📖 **完整 API 文档**：请参考 `api.md` 文件，包含详细的请求/响应示例和字段说明。
 
 ---
 
