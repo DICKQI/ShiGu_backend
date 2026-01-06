@@ -149,14 +149,7 @@ REST_FRAMEWORK = {
 }
 
 # CORS 跨域配置
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",  # React默认端口
-    "http://localhost:5173",  # Vite默认端口
-    "http://localhost:8080",  # Vue CLI默认端口
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:8080",
-]
+CORS_ALLOWED_ORIGINS = ['*']
 
 # 允许所有来源（仅开发环境使用，生产环境请使用上面的CORS_ALLOWED_ORIGINS）
 # CORS_ALLOW_ALL_ORIGINS = True
