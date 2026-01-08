@@ -89,7 +89,7 @@ class Character(models.Model):
     gender = models.CharField(
         max_length=10,
         choices=GENDER_CHOICES,
-        default="female",
+        default="other",
         verbose_name="角色性别",
     )
     created_at = models.DateTimeField(
