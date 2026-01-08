@@ -1,13 +1,17 @@
 from django.db.models import Count
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, status, viewsets
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 
+from .bgm_service import search_ip_characters
 from .models import Category, Character, Goods, IP
 from .serializers import (
+    BGMCreateCharactersRequestSerializer,
+    BGMSearchRequestSerializer,
+    BGMSearchResponseSerializer,
     CategorySimpleSerializer,
     CharacterSimpleSerializer,
     GoodsDetailSerializer,
@@ -250,3 +254,151 @@ class CategoryViewSet(viewsets.ModelViewSet):
     filterset_fields = {
         "name": ["exact", "icontains"],
     }
+
+
+# ==================== BGM API 视图 ====================
+
+@api_view(['POST'])
+def bgm_search_characters(request):
+    """
+    搜索IP作品并获取角色列表
+    
+    POST /api/bgm/search-characters/
+    
+    请求体:
+    {
+        "ip_name": "崩坏：星穹铁道"
+    }
+    
+    响应:
+    {
+        "ip_name": "崩坏：星穹铁道",
+        "characters": [
+            {
+                "name": "流萤",
+                "relation": "主角",
+                "avatar": "https://..."
+            },
+            ...
+        ]
+    }
+    """
+    serializer = BGMSearchRequestSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    
+    ip_name = serializer.validated_data['ip_name']
+    
+    try:
+        display_name, characters = search_ip_characters(ip_name)
+        
+        if display_name is None:
+            return Response(
+                {"detail": f"未找到与 '{ip_name}' 相关的作品"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        response_data = {
+            "ip_name": display_name,
+            "characters": characters
+        }
+        
+        response_serializer = BGMSearchResponseSerializer(data=response_data)
+        response_serializer.is_valid(raise_exception=True)
+        
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response(
+            {"detail": f"搜索失败: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+def bgm_create_characters(request):
+    """
+    根据角色列表创建IP和角色到数据库
+    
+    POST /api/bgm/create-characters/
+    
+    请求体:
+    {
+        "characters": [
+            {
+                "ip_name": "崩坏：星穹铁道",
+                "character_name": "流萤"
+            },
+            {
+                "ip_name": "崩坏：星穹铁道",
+                "character_name": "花火"
+            }
+        ]
+    }
+    
+    响应:
+    {
+        "created": 2,
+        "skipped": 0,
+        "details": [
+            {
+                "ip_name": "崩坏：星穹铁道",
+                "character_name": "流萤",
+                "status": "created",
+                "ip_id": 1,
+                "character_id": 1
+            },
+            ...
+        ]
+    }
+    """
+    serializer = BGMCreateCharactersRequestSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    
+    characters_data = serializer.validated_data['characters']
+    
+    created_count = 0
+    skipped_count = 0
+    details = []
+    
+    for char_data in characters_data:
+        ip_name = char_data['ip_name']
+        character_name = char_data['character_name']
+        
+        try:
+            # 获取或创建IP
+            ip_obj, ip_created = IP.objects.get_or_create(name=ip_name)
+            
+            # 获取或创建角色（使用unique_together约束避免重复）
+            character_obj, char_created = Character.objects.get_or_create(
+                ip=ip_obj,
+                name=character_name
+            )
+            
+            if char_created:
+                created_count += 1
+                status_msg = "created"
+            else:
+                skipped_count += 1
+                status_msg = "already_exists"
+            
+            details.append({
+                "ip_name": ip_name,
+                "character_name": character_name,
+                "status": status_msg,
+                "ip_id": ip_obj.id,
+                "character_id": character_obj.id
+            })
+            
+        except Exception as e:
+            details.append({
+                "ip_name": ip_name,
+                "character_name": character_name,
+                "status": "error",
+                "error": str(e)
+            })
+    
+    return Response({
+        "created": created_count,
+        "skipped": skipped_count,
+        "details": details
+    }, status=status.HTTP_200_OK)

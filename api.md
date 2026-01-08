@@ -1227,3 +1227,192 @@ main_photo: <file>
 
 若你后续确定前端框架（如 Vue3 + Pinia），可以在此基础上再补一份前端接口封装示例（TypeScript 类型 + Axios 封装）。***
 
+---
+
+## 八、BGM 角色导入辅助接口
+
+> 说明：本章节接口用于**从 Bangumi(BGM) API 拉取角色**并**批量写入本系统的 IP / Character 表**。  
+> 这两个接口是**互相独立**的：搜索接口只调用外部 API，不改数据库；创建接口只操作本地数据库，不再调用外部 API。
+
+### 8.1 搜索 IP 作品并获取角色列表
+
+- **URL**：`POST /api/bgm/search-characters/`
+- **说明**：
+  - 前端输入 IP 名称（如「崩坏：星穹铁道」），后端调用 BGM 官方 API 搜索条目并拉取其角色列表。
+  - **不会**写入本地数据库，仅用于给前端展示「候选角色列表」，供用户勾选确认。
+  - 若未找到对应作品，将返回 `404 Not Found`。
+
+#### 请求体（JSON）
+
+```json
+{
+  "ip_name": "崩坏：星穹铁道"
+}
+```
+
+字段说明：
+
+| 字段名   | 类型   | 必填 | 说明                        |
+| -------- | ------ | ---- | --------------------------- |
+| `ip_name` | string | 是   | IP 作品名，用于在 BGM 中搜索 |
+
+#### 响应体（成功示例）
+
+```json
+{
+  "ip_name": "崩坏：星穹铁道",
+  "characters": [
+    {
+      "name": "流萤",
+      "relation": "主角",
+      "avatar": "https://lain.bgm.tv/pic/crt/l/xx/xx/12345.jpg"
+    },
+    {
+      "name": "花火",
+      "relation": "配角",
+      "avatar": "https://lain.bgm.tv/pic/crt/l/yy/yy/67890.jpg"
+    }
+  ]
+}
+```
+
+字段说明：
+
+| 字段名        | 类型           | 说明                                      |
+| ------------- | -------------- | ----------------------------------------- |
+| `ip_name`     | string         | BGM 返回的作品显示名（优先中文名）        |
+| `characters`  | array[object]  | 角色对象数组                              |
+| `name`        | string         | 角色名（已解码 HTML 实体，如 `&amp;`）    |
+| `relation`    | string         | 角色与作品关系：如「主角」「配角」「客串」 |
+| `avatar`      | string         | 角色头像 URL（当前可忽略，仅展示用）      |
+
+> 注意：
+> - 后端会对 `relation` 做排序，返回结果中**主角在前、配角其后、客串/其他在最后**。
+> - 当前版本不会将头像下载/保存，只透传头像 URL 给前端。
+
+#### 响应体（未找到示例）
+
+```json
+{
+  "detail": "未找到与 'xxx' 相关的作品"
+}
+```
+
+状态码：`404 Not Found`
+
+---
+
+### 8.2 根据角色列表批量创建 IP / 角色
+
+- **URL**：`POST /api/bgm/create-characters/`
+- **说明**：
+  - 前端在「BGM 搜索」页勾选需要导入的角色后，将勾选结果回传给后端。
+  - 后端会根据 `ip_name` 和 `character_name` 在本地数据库中**批量创建 IP 和角色**：
+    - IP 不存在时：自动创建 `IP` 记录；
+    - IP 已存在时：直接在该 IP 下创建角色；
+    - 角色已存在（同一 IP 下同名角色）：跳过创建，返回 `already_exists`。
+  - 该接口**不调用 BGM API**，只操作本地数据库。
+
+#### 请求体（JSON）
+
+```json
+{
+  "characters": [
+    {
+      "ip_name": "崩坏：星穹铁道",
+      "character_name": "流萤"
+    },
+    {
+      "ip_name": "崩坏：星穹铁道",
+      "character_name": "花火"
+    }
+  ]
+}
+```
+
+字段说明：
+
+| 字段名              | 类型            | 必填 | 说明                                  |
+| ------------------- | --------------- | ---- | ------------------------------------- |
+| `characters`        | array[object]   | 是   | 待创建的角色列表                      |
+| `ip_name`           | string          | 是   | IP 作品名，对应 `IP.name`            |
+| `character_name`    | string          | 是   | 角色名，对应 `Character.name`        |
+
+> 约束 / 行为：
+> - 使用模型约束 `unique_together (ip, name)` 保证**同一 IP 下角色名唯一**；
+> - 对于已存在的 (ip, name) 组合，接口会返回 `already_exists`，不会抛异常；
+> - 性别 `gender`、头像 `avatar` 当前由后端默认处理：`gender` 默认 `female`，`avatar` 为空。
+
+#### 响应体（成功示例）
+
+```json
+{
+  "created": 2,
+  "skipped": 1,
+  "details": [
+    {
+      "ip_name": "崩坏：星穹铁道",
+      "character_name": "流萤",
+      "status": "created",
+      "ip_id": 1,
+      "character_id": 5
+    },
+    {
+      "ip_name": "崩坏：星穹铁道",
+      "character_name": "花火",
+      "status": "created",
+      "ip_id": 1,
+      "character_id": 6
+    },
+    {
+      "ip_name": "崩坏：星穹铁道",
+      "character_name": "景元",
+      "status": "already_exists",
+      "ip_id": 1,
+      "character_id": 3
+    }
+  ]
+}
+```
+
+字段说明：
+
+| 字段名           | 类型          | 说明                                       |
+| ---------------- | ------------- | ------------------------------------------ |
+| `created`        | integer       | 本次**新创建**的角色数量                   |
+| `skipped`        | integer       | 因已存在而被跳过的角色数量                 |
+| `details`        | array[object] | 每个请求角色的处理结果明细                 |
+| `status`         | string        | `created` / `already_exists` / `error`     |
+| `ip_id`          | integer       | 对应 `IP` 记录的主键 ID                    |
+| `character_id`   | integer       | 对应 `Character` 记录的主键 ID（若有）     |
+| `error`          | string        | 当 `status="error"` 时返回错误信息         |
+
+#### 错误示例
+
+```json
+{
+  "characters": [
+    {
+      "ip_name": [
+        "This field may not be blank."
+      ]
+    }
+  ]
+}
+```
+
+状态码：`400 Bad Request`（请求体验证失败，如字段缺失/为空等）
+
+---
+
+### 8.3 推荐的前端使用流程（简版）
+
+1. 用户在前端输入 IP 名称并点击「搜索 BGM」：
+   - 调用 `POST /api/bgm/search-characters/` 获取候选角色列表。
+2. 前端展示从 BGM 返回的角色列表，用户勾选需要导入的角色：
+   - 将勾选结果映射为 `{ ip_name, character_name }` 数组。
+3. 用户点击「确认导入」：
+   - 调用 `POST /api/bgm/create-characters/`；
+   - 导入完成后，前端可以根据返回的 `ip_id` / `character_id` 刷新本地 `IP` / `Character` 列表或直接追加。
+
+

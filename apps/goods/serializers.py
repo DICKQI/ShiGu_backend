@@ -345,3 +345,50 @@ class GoodsDetailSerializer(serializers.ModelSerializer):
         return instance
 
 
+# ==================== BGM API 序列化器 ====================
+
+class BGMSearchRequestSerializer(serializers.Serializer):
+    """BGM搜索IP角色请求序列化器"""
+    ip_name = serializers.CharField(
+        max_length=200,
+        required=True,
+        help_text="IP作品名称，例如：崩坏：星穹铁道"
+    )
+
+
+class BGMCharacterSerializer(serializers.Serializer):
+    """BGM角色信息序列化器（用于搜索接口返回）"""
+    name = serializers.CharField(help_text="角色名称")
+    relation = serializers.CharField(help_text="角色关系，如：主角、配角、客串")
+    avatar = serializers.CharField(allow_blank=True, help_text="角色头像URL")
+
+
+class BGMSearchResponseSerializer(serializers.Serializer):
+    """BGM搜索IP角色响应序列化器"""
+    ip_name = serializers.CharField(help_text="IP作品名称")
+    characters = BGMCharacterSerializer(many=True, help_text="角色列表")
+
+
+class BGMCreateCharacterRequestSerializer(serializers.Serializer):
+    """BGM创建角色请求序列化器"""
+    ip_name = serializers.CharField(
+        max_length=100,
+        required=True,
+        help_text="IP作品名称"
+    )
+    character_name = serializers.CharField(
+        max_length=100,
+        required=True,
+        help_text="角色名称"
+    )
+
+
+class BGMCreateCharactersRequestSerializer(serializers.Serializer):
+    """BGM批量创建角色请求序列化器"""
+    characters = BGMCreateCharacterRequestSerializer(
+        many=True,
+        required=True,
+        help_text="角色列表，每个角色包含ip_name和character_name"
+    )
+
+

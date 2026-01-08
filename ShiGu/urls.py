@@ -21,6 +21,8 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from apps.goods.views import (
+    bgm_create_characters,
+    bgm_search_characters,
     CategoryViewSet,
     CharacterViewSet,
     GoodsViewSet,
@@ -43,6 +45,9 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     # 核心检索接口
     path("api/", include(router.urls)),
+    # BGM API接口
+    path("api/bgm/search-characters/", bgm_search_characters, name="bgm-search-characters"),
+    path("api/bgm/create-characters/", bgm_create_characters, name="bgm-create-characters"),
     # 位置相关接口
     path("api/location/nodes/", StorageNodeListCreateView.as_view(), name="location-nodes"),
     path("api/location/nodes/<int:pk>/", StorageNodeDetailView.as_view(), name="location-node-detail"),

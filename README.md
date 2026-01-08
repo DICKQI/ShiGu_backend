@@ -31,6 +31,12 @@
 - **多别名支持**：为每个 IP 配置多个搜索关键词（如「星铁」「崩铁」「HSR」）
 - **智能匹配**：搜索时自动匹配 IP 名称和所有关键词，提升检索体验
 
+### 🤖 BGM API 集成
+- **角色数据导入**：集成 Bangumi (BGM) API，支持搜索 IP 作品并获取角色列表
+- **批量创建**：支持从 BGM 搜索结果中批量创建 IP 和角色到本地数据库
+- **智能排序**：角色按关系优先级排序（主角 > 配角 > 客串），提升用户体验
+- **数据去重**：自动检测已存在的 IP 和角色，避免重复创建
+
 ### 🚀 性能优化
 - **查询优化**：列表接口使用瘦身序列化器，详情接口提供完整数据
 - **限流保护**：检索接口限流 60 次/分钟，防止恶意请求
@@ -66,6 +72,9 @@
   - 全文搜索：支持对 `name`、`ip__name`、`ip__keywords__value` 的搜索
   - 幂等创建：防止重复录入相同资产
   - 主图上传：独立接口 `POST /api/goods/{id}/upload-main-photo/`
+- **BGM API 集成**
+  - `POST /api/bgm/search-characters/`：搜索 IP 作品并获取角色列表（调用 BGM API）
+  - `POST /api/bgm/create-characters/`：批量创建 IP 和角色到本地数据库
 
 ### 物理收纳空间管理（`apps.location`）
 
@@ -90,6 +99,7 @@
 - **API 框架**：Django REST Framework 3.14+
 - **数据库**：SQLite（开发环境，生产环境可切换 PostgreSQL/MySQL）
 - **图片处理**：Pillow 10.0+
+- **HTTP 客户端**：requests（用于 BGM API 集成）
 - **其他依赖**：
   - `django-filter`：高级过滤支持
   - `django-cors-headers`：跨域资源共享
@@ -108,9 +118,11 @@ ShiGu/
 ├── apps/
 │   ├── goods/               # 谷子核心域模型及 API
 │   │   ├── models.py        # IP / IPKeyword / Character / Category / Goods / GuziImage
-│   │   ├── serializers.py   # 列表/详情序列化器，支持基础数据 CRUD
-│   │   ├── views.py         # ViewSet：IP / Character / Category / Goods
+│   │   ├── serializers.py   # 列表/详情序列化器，支持基础数据 CRUD 和 BGM API
+│   │   ├── views.py         # ViewSet：IP / Character / Category / Goods / BGM API
 │   │   ├── utils.py         # 图片压缩工具函数
+│   │   ├── bgm_service.py   # BGM API 服务封装（搜索 IP、获取角色列表）
+│   │   ├── admin.py         # Django Admin 后台管理配置
 │   │   └── signals.py       # 信号处理（如需要）
 │   │
 │   └── location/            # 物理收纳节点模型及 API
@@ -173,7 +185,14 @@ ShiGu/
    python manage.py createsuperuser
    ```
 
-5. **启动开发服务器**
+5. **配置 BGM API（可选，用于角色数据导入）**
+
+   如需使用 BGM API 导入角色数据功能，需要配置 Access Token：
+   - 在 `apps/goods/bgm_service.py` 中修改 `ACCESS_TOKEN` 变量
+   - 获取 Token：访问 [Bangumi API 文档](https://bangumi.github.io/api/) 申请个人访问令牌
+   - 如不配置 Token，BGM API 功能仍可使用，但可能受到请求频率限制
+
+6. **启动开发服务器**
 
    ```bash
    python manage.py runserver
@@ -182,6 +201,7 @@ ShiGu/
    默认访问地址为 `http://127.0.0.1:8000/`：
    - Django Admin：`/admin/`
    - API 根路径：`/api/`
+   - BGM API：`/api/bgm/search-characters/`、`/api/bgm/create-characters/`
    - API 文档：参考 `api.md`
 
 ---
@@ -250,6 +270,18 @@ ShiGu/
 - `GET /api/location/nodes/{id}/goods/`：查看指定节点下的谷子
   - `?include_children=true`：包含所有子节点谷子
 
+### BGM API 集成
+
+#### 搜索 IP 作品并获取角色列表
+- `POST /api/bgm/search-characters/`：搜索 IP 作品并获取角色列表（调用 BGM API，不写入数据库）
+  - 请求体：`{"ip_name": "崩坏：星穹铁道"}`
+  - 返回：IP 显示名称和角色列表（包含角色名、关系、头像 URL）
+
+#### 批量创建 IP 和角色
+- `POST /api/bgm/create-characters/`：根据角色列表批量创建 IP 和角色到本地数据库
+  - 请求体：`{"characters": [{"ip_name": "崩坏：星穹铁道", "character_name": "流萤"}, ...]}`
+  - 返回：创建统计和每个角色的处理结果（created / already_exists / error）
+
 > 📖 **完整 API 文档**：请参考 `api.md` 文件，包含详细的请求/响应示例和字段说明。
 
 ---
@@ -265,6 +297,7 @@ ShiGu/
 - **自动压缩**：上传主图或补充图时自动压缩到约 300KB（`apps/goods/utils.compress_image`）
 - **格式转换**：自动将 RGBA/LA/P 模式转换为 RGB（JPEG 不支持透明度）
 - **独立上传**：主图通过 `POST /api/goods/{id}/upload-main-photo/` 接口单独上传
+- **应用范围**：主图、角色头像、补充图片均支持自动压缩
 
 ### 幂等性保护
 - **去重规则**：`GoodsViewSet.perform_create` 基于「IP+角色集合（顺序无关）+名称+入手日期+单价」做幂等写入
@@ -300,9 +333,9 @@ ShiGu/
 ### 数据库与环境
 - **开发环境**：默认使用 SQLite
 - **生产环境**：`SECRET_KEY`、`DEBUG`、数据库等生产参数需通过环境变量或独立配置文件覆盖
+- **时区配置**：默认使用 UTC 时区，生产环境建议根据实际需求调整 `TIME_ZONE` 设置
+- **语言配置**：默认使用英文（`en-us`），可根据需要修改 `LANGUAGE_CODE`
 
-### 后台管理
-- 通过 `python manage.py createsuperuser` 创建账户后，可在 `/admin/` 维护基础数据（IP/角色/品类/收纳节点等）
 
 ---
 
@@ -314,7 +347,8 @@ ShiGu/
 4. **灵活的收纳管理**：树状结构 + 路径冗余，既支持复杂层级又便于快速检索
 5. **多角色支持**：M2M 关系设计，完美支持双人/多人谷子场景
 6. **关键词搜索**：IP 关键词系统，提升搜索体验
-7. **图片自动压缩**：上传时自动压缩，节省存储空间
+7. **图片自动压缩**：智能压缩算法，上传时自动压缩，节省存储空间
+8. **BGM API 集成**：无缝对接 Bangumi API，快速导入 IP 和角色数据，提升数据录入效率
 
 ---
 
