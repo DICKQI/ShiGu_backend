@@ -119,8 +119,8 @@ class StorageNodeGoodsView(generics.ListAPIView):
         # 查询商品，使用优化查询避免 N+1 问题
         queryset = (
             Goods.objects.filter(location_id__in=node_ids)
-            .select_related("ip", "character__ip", "category", "location")
-            .prefetch_related("additional_photos")
+            .select_related("ip", "category", "location")
+            .prefetch_related("characters__ip", "additional_photos")
             .order_by("-created_at")
         )
 

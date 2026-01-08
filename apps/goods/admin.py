@@ -44,7 +44,7 @@ class GoodsAdmin(admin.ModelAdmin):
         "id",
         "name",
         "ip",
-        "character",
+        "get_characters",
         "category",
         "location",
         "status",
@@ -56,7 +56,7 @@ class GoodsAdmin(admin.ModelAdmin):
     )
     list_filter = (
         "ip",
-        "character",
+        "characters",
         "category",
         "status",
         "is_official",
@@ -68,13 +68,20 @@ class GoodsAdmin(admin.ModelAdmin):
         "name",
         "ip__name",
         "ip__keywords__value",
-        "character__name",
+        "characters__name",
         "category__name",
         "location__path_name",
     )
-    autocomplete_fields = ("ip", "character", "category", "location")
+    autocomplete_fields = ("ip", "characters", "category", "location")
     inlines = [GuziImageInline]
     readonly_fields = ("created_at", "updated_at")
     ordering = ("-created_at",)
     list_per_page = 50
+    filter_horizontal = ("characters",)  # 使用水平选择器显示多对多关系
+
+    def get_characters(self, obj):
+        """显示所有关联的角色名称"""
+        return ", ".join([char.name for char in obj.characters.all()])
+
+    get_characters.short_description = "角色"
 

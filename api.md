@@ -76,7 +76,7 @@
 | `id`           | UUID (PK)                    | 谷子唯一资产编号（字符串 UUID）                                     |
 | `name`         | Char(200), 索引              | 谷子名称，如：`流萤花火双人立牌`                                   |
 | `ip`           | FK -> `IP`                   | 所属作品                                                             |
-| `character`    | FK -> `Character`            | 所属角色                                                             |
+| `characters`   | M2M -> `Character[]`         | 关联角色列表（多对多关系），例如双人立牌可同时关联流萤和花火       |
 | `category`     | FK -> `Category`             | 品类                                                                 |
 | `location`     | FK -> `StorageNode` (可空)   | 物理存放位置，允许为空（尚未收纳 / 在路上等）                       |
 | `main_photo`   | Image(URL，可空)             | 主展示图（列表页和详情主图）                                        |
@@ -431,7 +431,8 @@ GET /api/location/nodes/2/goods/?include_children=true
 | 参数名        | 类型   | 说明                                                                                          |
 | ------------- | ------ | --------------------------------------------------------------------------------------------- |
 | `ip`          | int    | IP ID，精确过滤，例如 `/api/goods/?ip=1`                                                     |
-| `character`   | int    | 角色 ID，精确过滤                                                                            |
+| `characters`  | int    | 角色 ID，精确过滤（匹配包含该角色的谷子）                                                   |
+| `characters__in` | string | **多角色过滤**：逗号分隔的角色ID列表，如：`5,6`，匹配包含任意指定角色的谷子              |
 | `category`    | int    | 品类 ID，精确过滤                                                                            |
 | `status`      | string | 单状态过滤：`in_cabinet` / `outdoor` / `sold`                                               |
 | `status__in`  | string | **多状态过滤**：逗号分隔的状态列表，如：`in_cabinet,sold`                                   |
@@ -439,13 +440,13 @@ GET /api/location/nodes/2/goods/?include_children=true
 | `search`      | string | 轻量模糊搜索：会同时在 `Goods.name`、`IP.name`、`IPKeyword.value` 上匹配    |
 | `page`        | int    | 分页页码（DRF 默认）                                                                         |
 
-> 示例 1：检索“星铁 + 流萤 + 吧唧，当前在馆”的所有谷子：
+> 示例 1：检索"星铁 + 流萤 + 吧唧，当前在馆"的所有谷子：
 >
-> `/api/goods/?ip=1&character=5&category=2&status=in_cabinet&search=流萤`
+> `/api/goods/?ip=1&characters=5&category=2&status=in_cabinet&search=流萤`
 >
-> 示例 2：检索“星铁 + 流萤 + 吧唧，当前在馆 **或 已售出**”的所有谷子（多状态）：
+> 示例 2：检索"星铁 + 流萤或花火 + 吧唧，当前在馆 **或 已售出**"的所有谷子（多角色、多状态）：
 >
-> `/api/goods/?ip=1&character=5&category=2&status__in=in_cabinet,sold&search=流萤`
+> `/api/goods/?ip=1&characters__in=5,6&category=2&status__in=in_cabinet,sold&search=流萤`
 >
 > 示例 3：如果 IP `崩坏：星穹铁道` 额外配置了关键词 `崩铁`、`HSR`，则：
 >
@@ -466,14 +467,28 @@ GET /api/location/nodes/2/goods/?include_children=true
         "id": 1,
         "name": "崩坏：星穹铁道"
       },
-      "character": {
-        "id": 5,
-        "name": "流萤",
-        "ip": {
-          "id": 1,
-          "name": "崩坏：星穹铁道"
+      "characters": [
+        {
+          "id": 5,
+          "name": "流萤",
+          "ip": {
+            "id": 1,
+            "name": "崩坏：星穹铁道"
+          },
+          "avatar": null,
+          "gender": "female"
+        },
+        {
+          "id": 6,
+          "name": "花火",
+          "ip": {
+            "id": 1,
+            "name": "崩坏：星穹铁道"
+          },
+          "avatar": "https://cdn.example.com/characters/huohuo.jpg",
+          "gender": "female"
         }
-      },
+      ],
       "category": {
         "id": 2,
         "name": "立牌"
@@ -489,7 +504,7 @@ GET /api/location/nodes/2/goods/?include_children=true
 
 **字段说明**：
 - `id`：谷子 UUID，后续详情/编辑都用此 ID。
-- `ip` / `character` / `category`：已展开为简单对象，避免前端再二次请求。
+- `ip` / `characters` / `category`：已展开为简单对象，避免前端再二次请求。`characters` 为数组，可包含多个角色。
 - `location_path`：人类可读的完整路径（前端直接展示即可）。
 - `main_photo`：主图 URL，可直接用作列表缩略图（后续可以替换为缩略图 URL）。
 
@@ -516,14 +531,28 @@ GET /api/location/nodes/2/goods/?include_children=true
     "id": 1,
     "name": "崩坏：星穹铁道"
   },
-  "character": {
-    "id": 5,
-    "name": "流萤",
-    "ip": {
-      "id": 1,
-      "name": "崩坏：星穹铁道"
+  "characters": [
+    {
+      "id": 5,
+      "name": "流萤",
+      "ip": {
+        "id": 1,
+        "name": "崩坏：星穹铁道"
+      },
+      "avatar": null,
+      "gender": "female"
+    },
+    {
+      "id": 6,
+      "name": "花火",
+      "ip": {
+        "id": 1,
+        "name": "崩坏：星穹铁道"
+      },
+      "avatar": "https://cdn.example.com/characters/huohuo.jpg",
+      "gender": "female"
     }
-  },
+  ],
   "category": {
     "id": 2,
     "name": "立牌"
@@ -555,6 +584,7 @@ GET /api/location/nodes/2/goods/?include_children=true
 ```
 
 **字段说明补充**：
+- `characters`：关联角色数组，可包含多个角色，例如双人立牌可同时关联流萤和花火。
 - `location`：位置节点 ID，可用于前端联动高亮位置树。
 - `additional_photos`：补充图片数组，适合做详情页图片画廊。
 
@@ -572,13 +602,13 @@ GET /api/location/nodes/2/goods/?include_children=true
 
 ```json
 {
-  "name": "流萤限定吧唧",
+  "name": "流萤花火双人立牌",
   "ip_id": 1,
-  "character_id": 5,
+  "character_ids": [5, 6],
   "category_id": 1,
   "location": 3,
   "quantity": 1,
-  "price": "35.00",
+  "price": "89.00",
   "purchase_date": "2024-09-20",
   "is_official": true,
   "status": "in_cabinet",
@@ -587,9 +617,10 @@ GET /api/location/nodes/2/goods/?include_children=true
 ```
 
 说明：
+- `character_ids`：角色ID数组，可包含多个角色，例如 `[5, 6]` 表示同时关联流萤（ID: 5）和花火（ID: 6）。
 - 主图 `main_photo` 不在此接口上传；请使用下方 `upload-main-photo`。
 - 后端会根据以下组合判断是否重复（幂等）：
-  - `ip + character + name + purchase_date + price`
+  - `ip + 相同角色集合（顺序无关） + name + purchase_date + price`
   - 若已存在同组合的记录，则不会新建，而是返回已有实例。
 
 **响应**：返回创建后的完整详情（同 4.2）。
@@ -1163,7 +1194,7 @@ main_photo: <file>
 
 ### 6.2 搜索与筛选使用建议
 
-- 优先使用 **精确过滤参数**（`ip`、`character`、`category`、`status`、`location`），减少模糊搜索范围。
+- 优先使用 **精确过滤参数**（`ip`、`characters`、`category`、`status`、`location`），减少模糊搜索范围。
 - 搜索框建议映射到 `search` 参数，仅在确认输入后再发起请求（点回车 / 失焦）。
 
 ---
@@ -1180,18 +1211,19 @@ main_photo: <file>
 
 2. **云展柜列表页**
    - 使用 `GET /api/goods/`，根据筛选条件拼 query：
-     - `ip` / `character` / `category` / `status` / `status__in` / `location` / `search`。
+     - `ip` / `characters` / `characters__in` / `category` / `status` / `status__in` / `location` / `search`。
    - 列表 Item 展示：
      - 主图：`main_photo`
      - 标题：`name`
-     - 副标题：`ip.name + character.name + category.name`
+     - 副标题：`ip.name + characters.map(c => c.name).join('、') + category.name`（多个角色用顿号连接）
      - 位置：`location_path`
 
 3. **详情页**
    - 路由进入时，用 `id` 调用：`GET /api/goods/{id}/`。
    - 展示：
      - 主图 + `additional_photos` 做画廊
-     - 右侧信息卡：`ip/character/category/location_path/price/purchase_date/is_official/status/notes`。
+     - 右侧信息卡：`ip/characters/category/location_path/price/purchase_date/is_official/status/notes`。
+     - `characters` 为数组，可展示多个角色标签或角色头像。
 
 若你后续确定前端框架（如 Vue3 + Pinia），可以在此基础上再补一份前端接口封装示例（TypeScript 类型 + Axios 封装）。***
 

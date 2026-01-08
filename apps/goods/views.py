@@ -28,8 +28,8 @@ class GoodsViewSet(viewsets.ModelViewSet):
 
     queryset = (
         Goods.objects.all()
-        .select_related("ip", "character__ip", "category", "location")
-        .prefetch_related("additional_photos")
+        .select_related("ip", "category", "location")
+        .prefetch_related("characters__ip", "additional_photos")
     )
 
     # 列表接口瘦身：只返回必要字段；详情接口使用完整序列化器
@@ -44,11 +44,12 @@ class GoodsViewSet(viewsets.ModelViewSet):
         filters.SearchFilter,
     )
 
-    # 复合过滤：/api/goods/?ip=1&character=5&category=2&status=in_cabinet
+    # 复合过滤：/api/goods/?ip=1&characters=5&category=2&status=in_cabinet
+    # 支持多角色筛选：/api/goods/?characters__in=5,6 表示包含任意角色的谷子
     # 支持多状态筛选：/api/goods/?status__in=in_cabinet,sold
     filterset_fields = {
         "ip": ["exact"],
-        "character": ["exact"],
+        "characters": ["exact", "in"],  # exact: 精确匹配，in: 包含任意指定角色
         "category": ["exact"],
         # status 支持 exact 和 in，in 用 status__in 参数，值用英文逗号分隔
         "status": ["exact", "in"],
@@ -76,8 +77,8 @@ class GoodsViewSet(viewsets.ModelViewSet):
 
         qs = (
             Goods.objects.all()
-            .select_related("ip", "character__ip", "category", "location")
-            .prefetch_related("additional_photos")
+            .select_related("ip", "category", "location")
+            .prefetch_related("characters__ip", "additional_photos")
         )
         return qs
 
@@ -86,35 +87,48 @@ class GoodsViewSet(viewsets.ModelViewSet):
         简单幂等性：避免重复录入完全相同的谷子。
 
         规则示例（可按业务后续调整）：
-        - 同一 IP + 角色 + 名称 + 入手日期 + 单价 认为是同一条资产。
+        - 同一 IP + 相同角色集合（顺序无关） + 名称 + 入手日期 + 单价 认为是同一条资产。
         """
 
         validated = serializer.validated_data
         ip = validated.get("ip")
-        character = validated.get("character")
+        characters = validated.get("characters", [])
         name = validated.get("name")
         purchase_date = validated.get("purchase_date")
         price = validated.get("price")
 
-        exists = Goods.objects.filter(
+        # 构建查询条件
+        query = Goods.objects.filter(
             ip=ip,
-            character=character,
             name=name,
             purchase_date=purchase_date,
             price=price,
-        ).exists()
+        )
 
-        if exists:
-            # 如果已经存在，则直接返回原有实例（保证幂等）
-            instance = Goods.objects.get(
-                ip=ip,
-                character=character,
-                name=name,
-                purchase_date=purchase_date,
-                price=price,
+        # 如果有角色数据，检查角色集合是否相同
+        if characters:
+            # 将角色ID列表排序后转为元组，用于比较
+            character_ids = sorted([c.id for c in characters])
+            # 过滤出角色数量相同的谷子
+            query = query.annotate(character_count=Count("characters")).filter(
+                character_count=len(character_ids)
             )
-            serializer.instance = instance
-            return
+
+            # 遍历查询结果，检查角色集合是否完全相同
+            for candidate in query.prefetch_related("characters"):
+                candidate_ids = sorted([c.id for c in candidate.characters.all()])
+                if candidate_ids == character_ids:
+                    # 找到了完全匹配的实例
+                    serializer.instance = candidate
+                    return
+        else:
+            # 没有角色数据时，检查是否有完全相同的记录（不含角色）
+            if query.exists():
+                # 如果存在完全相同的记录（包括角色也为空），返回该实例
+                candidate = query.first()
+                if candidate.characters.count() == 0:
+                    serializer.instance = candidate
+                    return
 
         serializer.save()
 

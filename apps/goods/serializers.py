@@ -187,11 +187,11 @@ class GuziImageSerializer(serializers.ModelSerializer):
 
 class GoodsListSerializer(serializers.ModelSerializer):
     """
-    列表用“瘦身”序列化器，仅返回检索页所需字段。
+    列表用"瘦身"序列化器，仅返回检索页所需字段。
     """
 
     ip = IPSimpleSerializer(read_only=True)
-    character = CharacterSimpleSerializer(read_only=True)
+    characters = CharacterSimpleSerializer(many=True, read_only=True)
     category = CategorySimpleSerializer(read_only=True)
     location_path = serializers.SerializerMethodField()
 
@@ -201,7 +201,7 @@ class GoodsListSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "ip",
-            "character",
+            "characters",
             "category",
             "location_path",
             "main_photo",
@@ -228,13 +228,14 @@ class GoodsDetailSerializer(serializers.ModelSerializer):
         required=False,
         help_text="所属IP作品ID",
     )
-    character = CharacterSimpleSerializer(read_only=True)
-    character_id = serializers.PrimaryKeyRelatedField(
+    characters = CharacterSimpleSerializer(many=True, read_only=True)
+    character_ids = serializers.PrimaryKeyRelatedField(
         queryset=Character.objects.all(),
-        source="character",
+        many=True,
+        source="characters",
         write_only=True,
         required=False,
-        help_text="所属角色ID",
+        help_text="关联角色ID列表，例如：[5, 6] 表示同时关联流萤和花火",
     )
     category = CategorySimpleSerializer(read_only=True)
     category_id = serializers.PrimaryKeyRelatedField(
@@ -254,8 +255,8 @@ class GoodsDetailSerializer(serializers.ModelSerializer):
             "name",
             "ip_id",
             "ip",
-            "character_id",
-            "character",
+            "character_ids",
+            "characters",
             "category_id",
             "category",
             "location_path",
@@ -284,7 +285,7 @@ class GoodsDetailSerializer(serializers.ModelSerializer):
         if self.instance is None:
             required_fields = {
                 "ip": "ip_id",
-                "character": "character_id",
+                "characters": "character_ids",
                 "category": "category_id",
             }
             missing = [
@@ -294,24 +295,53 @@ class GoodsDetailSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {field: "创建时必填" for field in missing}
                 )
+            # 验证角色列表不为空
+            if "characters" in attrs and not attrs["characters"]:
+                raise serializers.ValidationError(
+                    {"character_ids": "至少需要关联一个角色"}
+                )
         return attrs
 
     def create(self, validated_data):
-        """创建谷子时自动压缩主图"""
+        """创建谷子时自动压缩主图并处理多对多关系"""
+        # 提取多对多关系数据
+        characters = validated_data.pop("characters", [])
+        
+        # 处理主图压缩
         main_photo = validated_data.get('main_photo')
         if main_photo:
             compressed_image = compress_image(main_photo, max_size_kb=300)
             if compressed_image:
                 validated_data['main_photo'] = compressed_image
-        return super().create(validated_data)
+        
+        # 创建谷子实例
+        instance = super().create(validated_data)
+        
+        # 设置多对多关系
+        if characters:
+            instance.characters.set(characters)
+        
+        return instance
 
     def update(self, instance, validated_data):
-        """更新谷子时自动压缩主图"""
+        """更新谷子时自动压缩主图并处理多对多关系"""
+        # 提取多对多关系数据
+        characters = validated_data.pop("characters", None)
+        
+        # 处理主图压缩
         main_photo = validated_data.get('main_photo')
         if main_photo:
             compressed_image = compress_image(main_photo, max_size_kb=300)
             if compressed_image:
                 validated_data['main_photo'] = compressed_image
-        return super().update(instance, validated_data)
+        
+        # 更新其他字段
+        instance = super().update(instance, validated_data)
+        
+        # 更新多对多关系（如果提供了）
+        if characters is not None:
+            instance.characters.set(characters)
+        
+        return instance
 
 

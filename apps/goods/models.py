@@ -156,11 +156,11 @@ class Goods(models.Model):
         related_name="goods",
         verbose_name="IP作品",
     )
-    character = models.ForeignKey(
+    characters = models.ManyToManyField(
         Character,
-        on_delete=models.PROTECT,
         related_name="goods",
         verbose_name="角色",
+        help_text="可关联多个角色，例如双人立牌可以关联流萤和花火",
     )
     category = models.ForeignKey(
         Category,
