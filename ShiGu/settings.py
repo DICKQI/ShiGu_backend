@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'django_filters',
     'corsheaders',  # 跨域支持
+    'django_extensions',
     # 本地应用
     "apps.goods.apps.GoodsConfig",
     "apps.location.apps.LocationConfig"

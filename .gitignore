@@ -95,3 +95,5 @@ celerybeat.pid
 # */migrations/*.py
 # !*/migrations/__init__.py
 
+cert.crt
+cert.key
