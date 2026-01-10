@@ -149,21 +149,8 @@ REST_FRAMEWORK = {
 }
 
 # CORS 跨域配置
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",  # React默认端口
-    "http://localhost:5173",  # Vite默认端口
-    "http://localhost:8080",  # Vue CLI默认端口
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:8080",
-    # 内网部署前端（Nginx 反向代理 80 -> 192.168.3.150）
-    "http://192.168.3.150",
-    "http://192.168.3.150:80",
-    "http://192.168.3.150:8000",  # 若直接访问后端端口
-]
-
-# 允许所有来源（仅开发环境使用，生产环境请使用上面的CORS_ALLOWED_ORIGINS）
-# CORS_ALLOW_ALL_ORIGINS = True
+# 开发环境：允许所有来源（方便开发调试）
+CORS_ALLOW_ALL_ORIGINS = True  # 开发环境使用，生产环境请改为False并使用下面的CORS_ALLOWED_ORIGINS
 
 # 允许携带凭证（cookies, authorization headers等）
 CORS_ALLOW_CREDENTIALS = True
