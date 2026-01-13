@@ -4,4 +4,5 @@ django-filter>=23.0
 django-cors-headers>=4.3.0
 Pillow>=10.0.0
 requests>=2.31.0
+gunicorn>=21.2.0
 
