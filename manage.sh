@@ -55,8 +55,8 @@ check_command() {
 
 # 检查gunicorn是否安装
 check_gunicorn() {
-    if ! python -c "import gunicorn" 2>/dev/null; then
-        print_error "Gunicorn 未安装，请先安装：pip install gunicorn"
+    if ! python3 -c "import gunicorn" 2>/dev/null; then
+        print_error "Gunicorn 未安装，请先安装：pip3 install gunicorn"
         exit 1
     fi
 }
@@ -111,7 +111,8 @@ start() {
     # 启动gunicorn
     print_info "使用配置: Workers=$WORKERS, Bind=$BIND_ADDR"
     
-    gunicorn "$WSGI_APP" \
+    # 使用 python3 -m gunicorn 确保使用 python3 解释器
+    python3 -m gunicorn "$WSGI_APP" \
         --bind "$BIND_ADDR" \
         --workers "$WORKERS" \
         --worker-class "$WORKER_CLASS" \
@@ -306,10 +307,11 @@ Django 项目生产环境管理脚本
     $0 logs access    # 查看访问日志
 
 注意事项:
-    1. 确保已安装 gunicorn: pip install gunicorn
-    2. 生产环境建议使用 Nginx 作为反向代理
-    3. 建议使用 systemd 或 supervisor 管理服务
-    4. 定期检查日志文件大小，必要时进行日志轮转
+    1. 确保已安装 gunicorn: pip3 install gunicorn
+    2. 脚本使用 python3 运行 gunicorn，确保系统已安装 python3
+    3. 生产环境建议使用 Nginx 作为反向代理
+    4. 建议使用 systemd 或 supervisor 管理服务
+    5. 定期检查日志文件大小，必要时进行日志轮转
 
 EOF
 }
