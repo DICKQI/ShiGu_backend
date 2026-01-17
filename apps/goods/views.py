@@ -21,8 +21,6 @@ from .serializers import (
     IPSimpleSerializer,
 )
 from .utils import compress_image
-
-
 class GoodsFilter(FilterSet):
     """谷子过滤集，正确处理多对多字段characters"""
     
@@ -32,31 +30,17 @@ class GoodsFilter(FilterSet):
     status = CharFilter(field_name="status", lookup_expr="exact")
     status__in = BaseInFilter(field_name="status", lookup_expr="in")
     
-    # 处理多对多字段characters：exact 和 in
-    # 支持单数形式character和复数形式characters
+    # 单个角色筛选：?character=1387（精确匹配包含该角色的谷子）
     character = ModelMultipleChoiceFilter(
         field_name="characters",
         queryset=Character.objects.all(),
-        conjoined=False,  # False表示"包含任意指定角色"（OR），True表示"包含所有指定角色"（AND）
-        help_text="角色ID，例如：?character=5 或 ?character=5,6（包含任意指定角色的谷子）"
-    )
-    characters = ModelMultipleChoiceFilter(
-        field_name="characters",
-        queryset=Character.objects.all(),
-        conjoined=False,  # False表示"包含任意指定角色"（OR），True表示"包含所有指定角色"（AND）
-        help_text="角色ID，例如：?characters=5 或 ?characters=5,6（包含任意指定角色的谷子）"
-    )
-    # 为了兼容characters__in参数格式
-    characters__in = ModelMultipleChoiceFilter(
-        field_name="characters",
-        queryset=Character.objects.all(),
-        conjoined=False,
-        help_text="角色ID列表（逗号分隔），例如：?characters__in=5,6"
+        conjoined=False,  # False表示"包含任意指定角色"（OR）
+        help_text="单个角色ID，例如：?character=1387（包含该角色的谷子）"
     )
     
     class Meta:
         model = Goods
-        fields = ["ip", "category", "location", "status", "characters"]
+        fields = ["ip", "category", "location", "status", "character"]
 
 
 class GoodsViewSet(viewsets.ModelViewSet):

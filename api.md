@@ -434,9 +434,7 @@ GET /api/location/nodes/2/goods/?include_children=true
 | 参数名        | 类型   | 说明                                                                                          |
 | ------------- | ------ | --------------------------------------------------------------------------------------------- |
 | `ip`          | int    | IP ID，精确过滤，例如 `/api/goods/?ip=1`                                                     |
-| `character`   | int    | 角色 ID，精确过滤（匹配包含该角色的谷子）。支持单数和复数形式，与 `characters` 等价         |
-| `characters`  | int    | 角色 ID，精确过滤（匹配包含该角色的谷子）。支持单数和复数形式，与 `character` 等价          |
-| `characters__in` | string | **多角色过滤**：逗号分隔的角色ID列表，如：`5,6`，匹配包含任意指定角色的谷子              |
+| `character`   | int    | 单个角色 ID，精确过滤，例如 `?character=5`。匹配包含该角色的谷子                             |
 | `category`    | int    | 品类 ID，精确过滤                                                                            |
 | `status`      | string | 单状态过滤：`in_cabinet` / `outdoor` / `sold`                                               |
 | `status__in`  | string | **多状态过滤**：逗号分隔的状态列表，如：`in_cabinet,sold`                                   |
@@ -446,15 +444,11 @@ GET /api/location/nodes/2/goods/?include_children=true
 
 > 示例 1：检索"星铁 + 流萤 + 吧唧，当前在馆"的所有谷子：
 >
-> `/api/goods/?ip=1&characters=5&category=2&status=in_cabinet&search=流萤`
->
-> 或使用单数形式：
->
 > `/api/goods/?ip=1&character=5&category=2&status=in_cabinet&search=流萤`
 >
-> 示例 2：检索"星铁 + 流萤或花火 + 吧唧，当前在馆 **或 已售出**"的所有谷子（多角色、多状态）：
+> 示例 2：检索"星铁 + 流萤 + 吧唧，当前在馆 **或 已售出**"的所有谷子（多状态）：
 >
-> `/api/goods/?ip=1&characters__in=5,6&category=2&status__in=in_cabinet,sold&search=流萤`
+> `/api/goods/?ip=1&character=5&category=2&status__in=in_cabinet,sold&search=流萤`
 >
 > 示例 3：如果 IP `崩坏：星穹铁道` 额外配置了关键词 `崩铁`、`HSR`，则：
 >
@@ -1408,7 +1402,7 @@ gender: female
 
 2. **云展柜列表页**
    - 使用 `GET /api/goods/`，根据筛选条件拼 query：
-     - `ip` / `characters` / `characters__in` / `category` / `status` / `status__in` / `location` / `search`。
+     - `ip` / `character` / `category` / `status` / `status__in` / `location` / `search`。
    - 列表 Item 展示：
      - 主图：`main_photo`
      - 标题：`name`
