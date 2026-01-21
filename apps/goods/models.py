@@ -267,13 +267,22 @@ class Goods(models.Model):
         verbose_name="备注",
     )
 
+    # 自定义排序字段：值越小越靠前，默认0
+    order = models.BigIntegerField(
+        default=0,
+        db_index=True,
+        verbose_name="自定义排序值",
+        help_text="值越小越靠前，默认0",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新时间")
 
     class Meta:
         verbose_name = "谷子"
         verbose_name_plural = "谷子"
-        ordering = ["-created_at"]
+        # 默认排序：先按自定义顺序值从小到大，其次按创建时间倒序（保证新建未手动排序的谷子有稳定顺序）
+        ordering = ["order", "-created_at"]
 
     def __str__(self):
         return self.name

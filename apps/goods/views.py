@@ -1,10 +1,12 @@
-from django.db.models import Count
+from django.db import transaction
+from django.db.models import Count, F
 from django_filters import (
     FilterSet,
     ModelMultipleChoiceFilter,
     NumberFilter,
     CharFilter,
     BaseInFilter,
+    BooleanFilter,
 )
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters as drf_filters, status, viewsets
@@ -27,6 +29,7 @@ from .serializers import (
     CharacterSimpleSerializer,
     GoodsDetailSerializer,
     GoodsListSerializer,
+    GoodsMoveSerializer,
     IPDetailSerializer,
     IPSimpleSerializer,
 )
@@ -89,6 +92,7 @@ class GoodsFilter(FilterSet):
     location = NumberFilter(field_name="location", lookup_expr="exact")
     status = CharFilter(field_name="status", lookup_expr="exact")
     status__in = BaseInFilter(field_name="status", lookup_expr="in")
+    is_official = BooleanFilter(field_name="is_official", lookup_expr="exact")
     
     # 单个角色筛选：?character=1387（精确匹配包含该角色的谷子）
     character = ModelMultipleChoiceFilter(
@@ -100,7 +104,7 @@ class GoodsFilter(FilterSet):
     
     class Meta:
         model = Goods
-        fields = ["ip", "category", "location", "status", "character"]
+        fields = ["ip", "category", "location", "status", "status__in", "is_official", "character"]
 
     def _get_category_descendant_ids(self, category: Category) -> list[int]:
         """
@@ -242,6 +246,58 @@ class GoodsViewSet(viewsets.ModelViewSet):
                     return
 
         serializer.save()
+
+    @action(detail=True, methods=["post"], url_path="move")
+    def move(self, request, pk=None):
+        """
+        移动谷子排序接口：
+        将当前谷子移动到指定锚点谷子的前面或后面。
+        """
+        current_goods = self.get_object()
+        serializer = GoodsMoveSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        anchor_id = serializer.validated_data["anchor_id"]
+        position = serializer.validated_data["position"]
+
+        try:
+            anchor_goods = Goods.objects.get(id=anchor_id)
+        except Goods.DoesNotExist:
+            return Response(
+                {"detail": "锚点谷子不存在"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # 如果锚点就是自己，无需移动
+        if current_goods.id == anchor_goods.id:
+            return Response({"detail": "无需移动"}, status=status.HTTP_200_OK)
+
+        with transaction.atomic():
+            # 1. 计算目标 order
+            # before: 目标位置为 anchor.order
+            # after:  目标位置为 anchor.order + 1
+            target_order = anchor_goods.order
+            if position == "after":
+                target_order += 1
+
+            # 2. 腾出空间：
+            # 将所有 order >= target_order 的谷子（排除自己）整体后移 1
+            Goods.objects.filter(order__gte=target_order).exclude(
+                id=current_goods.id
+            ).update(order=F("order") + 1)
+
+            # 3. 设置当前谷子的 order
+            current_goods.order = target_order
+            current_goods.save(update_fields=["order"])
+
+        return Response(
+            {
+                "detail": "排序更新成功",
+                "id": str(current_goods.id),
+                "new_order": current_goods.order,
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @action(
         detail=True,

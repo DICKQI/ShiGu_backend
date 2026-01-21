@@ -448,6 +448,7 @@ GET /api/location/nodes/2/goods/?include_children=true
 | `category`    | int    | **品类树筛选**：传入任意层级品类 ID，匹配该品类及其所有子品类下的谷子。例如：<br>- 选择"吧唧"（ID=2）可筛选出"58mm吧唧"和"75mm吧唧"等所有子品类下的谷子<br>- 选择"58mm吧唧"（ID=5）只筛选出该品类下的谷子 |
 | `status`      | string | 单状态过滤：`in_cabinet` / `outdoor` / `sold`                                               |
 | `status__in`  | string | **多状态过滤**：逗号分隔的状态列表，如：`in_cabinet,sold`                                   |
+| `is_official` | bool   | 是否官谷筛选：`true`=只看官谷，`false`=只看非官谷。不传则不过滤                               |
 | `location`    | int    | 位置节点 ID，过滤收纳在某一具体节点下的谷子                                                 |
 | `search`      | string | 轻量模糊搜索：会同时在 `Goods.name`、`IP.name`、`IPKeyword.value` 上匹配    |
 | `page`        | int    | 分页页码，从 1 开始，例如 `?page=1` 表示第一页                                               |
@@ -463,7 +464,15 @@ GET /api/location/nodes/2/goods/?include_children=true
 >
 > `/api/goods/?ip=1&character=5&category=2&status__in=in_cabinet,sold&search=流萤`
 >
-> 示例 3：如果 IP `崩坏：星穹铁道` 额外配置了关键词 `崩铁`、`HSR`，则：
+> 示例 3：只检索 **官谷**：
+>
+> `/api/goods/?is_official=true`
+>
+> 示例 4：只检索 **非官谷**：
+>
+> `/api/goods/?is_official=false`
+>
+> 示例 5：如果 IP `崩坏：星穹铁道` 额外配置了关键词 `崩铁`、`HSR`，则：
 >
 > `/api/goods/?search=崩铁` 或 `/api/goods/?search=HSR` 也可以命中该 IP 及其下所有相关谷子。
 
@@ -847,6 +856,66 @@ DELETE /api/goods/abc123/additional-photos/?photo_ids=10,11,12
   - 失败：`404 Not Found`（ID 不存在）
 
 ---
+
+### 4.5 谷子排序移动
+
+- **URL**：`POST /api/goods/{id}/move/`
+- **说明**：
+  - 用于前端拖拽排序场景，实现“将谷子 A 移动到谷子 B 的前面/后面”。
+  - 该接口支持跨页排序（只需提供目标位置的锚点 ID 即可），且仅需传输极少量数据，性能高效。
+
+#### 路径参数
+
+| 参数名 | 类型 | 说明            |
+| ------ | ---- | --------------- |
+| `id`   | UUID | 被移动的谷子 ID |
+
+#### 请求体（JSON）
+
+```json
+{
+  "anchor_id": "a1b2c3d4-...",
+  "position": "before"
+}
+```
+
+字段说明：
+
+| 字段名      | 类型   | 必填 | 说明                                     |
+| ----------- | ------ | ---- | ---------------------------------------- |
+| `anchor_id` | UUID   | 是   | 锚点谷子 ID（即参考物）                  |
+| `position`  | string | 是   | 移动方向：`before`（之前）/ `after`（之后） |
+
+#### 逻辑示例
+
+假设列表顺序为：A(order=10) -> B(order=20) -> C(order=30)。
+
+操作：将 C 移动到 A 之前。  
+请求：`POST /api/goods/{C_ID}/move/`，Body: `{"anchor_id": "{A_ID}", "position": "before"}`
+
+结果：
+- A 及后续元素自动后移：A(11), B(21)
+- C 插入目标位置：C(10)
+- 新顺序：C -> A -> B
+
+操作：将 A 移动到 B 之后。  
+请求：`POST /api/goods/{A_ID}/move/`，Body: `{"anchor_id": "{B_ID}", "position": "after"}`
+
+结果（示意）：
+- 目标位置为 \(B.order + 1 = 21\)（若发生碰撞，后续元素会自动 +1）
+- 实际数据库会执行类似：`UPDATE goods SET order = order + 1 WHERE order >= 21`
+- A 更新为 21
+- 新顺序：B -> A（注：具体数值取决于数据库当前状态，但相对顺序保证正确）
+
+#### 响应示例
+
+```json
+{
+  "detail": "排序更新成功",
+  "id": "e4c1cb33-5cd3-4f94-bfc7-9de0b99f5a10",
+  "new_order": 105
+}
+```
 
 ## 五、基础数据 API（CRUD 完整接口）
 

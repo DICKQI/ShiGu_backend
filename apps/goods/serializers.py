@@ -376,6 +376,8 @@ class GoodsListSerializer(serializers.ModelSerializer):
             "main_photo",
             "status",
             "quantity",
+            "is_official",
+            "order",  # 自定义排序值
         )
 
     def get_location_path(self, obj):
@@ -440,6 +442,7 @@ class GoodsDetailSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "additional_photos",
+            "order",  # 自定义排序值
         )
 
     def get_location_path(self, obj):
@@ -512,6 +515,22 @@ class GoodsDetailSerializer(serializers.ModelSerializer):
             instance.characters.set(characters)
         
         return instance
+
+
+# ==================== Goods 自定义排序 / 移动接口序列化器 ====================
+
+class GoodsMoveSerializer(serializers.Serializer):
+    """谷子排序移动请求序列化器"""
+
+    anchor_id = serializers.UUIDField(
+        required=True,
+        help_text="锚点谷子ID（即要移动到哪个谷子的前面或后面）",
+    )
+    position = serializers.ChoiceField(
+        choices=["before", "after"],
+        required=True,
+        help_text="移动位置：before(之前) / after(之后)",
+    )
 
 
 # ==================== BGM API 序列化器 ====================
