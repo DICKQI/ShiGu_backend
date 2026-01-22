@@ -20,6 +20,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 
 from ..models import Category, Character, Goods, GuziImage
+from apps.location.models import StorageNode
 from ..serializers import (
     GoodsDetailSerializer,
     GoodsListSerializer,
@@ -81,7 +82,8 @@ class GoodsFilter(FilterSet):
     ip = NumberFilter(field_name="ip", lookup_expr="exact")
     # 树形品类筛选：?category=2 （筛选该品类及其所有子品类下的谷子）
     category = NumberFilter(method="filter_category_tree")
-    location = NumberFilter(field_name="location", lookup_expr="exact")
+    # 树形位置筛选：?location=5 （筛选该位置及其所有子节点下的谷子）
+    location = NumberFilter(method="filter_location_tree")
     status = CharFilter(field_name="status", lookup_expr="exact")
     status__in = BaseInFilter(field_name="status", lookup_expr="in")
     is_official = BooleanFilter(field_name="is_official", lookup_expr="exact")
@@ -115,6 +117,23 @@ class GoodsFilter(FilterSet):
         dfs(category)
         return ids
 
+    def _get_location_descendant_ids(self, node: StorageNode) -> list[int]:
+        """
+        获取指定物理位置节点的所有后代节点 ID（包含自身）。
+        与品类类似，同样采用自关联树结构。
+        """
+        ids: list[int] = []
+
+        def dfs(n: StorageNode):
+            ids.append(n.id)
+            for child in n.children.all():
+                dfs(child)
+
+        # 预加载 children，避免递归过程中 N+1
+        node = StorageNode.objects.prefetch_related("children").get(pk=node.pk)
+        dfs(node)
+        return ids
+
     def filter_category_tree(self, queryset, name, value):
         """
         树形品类筛选：
@@ -129,6 +148,21 @@ class GoodsFilter(FilterSet):
 
         ids = self._get_category_descendant_ids(category)
         return queryset.filter(category_id__in=ids)
+
+    def filter_location_tree(self, queryset, name, value):
+        """
+        树形位置筛选：
+        - ?location=<id>：返回该位置及其所有子节点下的谷子
+        """
+        if not value:
+            return queryset
+        try:
+            node = StorageNode.objects.get(pk=value)
+        except StorageNode.DoesNotExist:
+            return queryset.none()
+
+        ids = self._get_location_descendant_ids(node)
+        return queryset.filter(location_id__in=ids)
 
 
 class GoodsViewSet(viewsets.ModelViewSet):
