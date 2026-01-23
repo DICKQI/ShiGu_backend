@@ -84,6 +84,7 @@ class GoodsFilter(FilterSet):
     category = NumberFilter(method="filter_category_tree")
     # 树形位置筛选：?location=5 （筛选该位置及其所有子节点下的谷子）
     location = NumberFilter(method="filter_location_tree")
+    theme = NumberFilter(field_name="theme", lookup_expr="exact")
     status = CharFilter(field_name="status", lookup_expr="exact")
     status__in = BaseInFilter(field_name="status", lookup_expr="in")
     is_official = BooleanFilter(field_name="is_official", lookup_expr="exact")
@@ -98,7 +99,7 @@ class GoodsFilter(FilterSet):
     
     class Meta:
         model = Goods
-        fields = ["ip", "category", "location", "status", "status__in", "is_official", "character"]
+        fields = ["ip", "category", "location", "theme", "status", "status__in", "is_official", "character"]
 
     def _get_category_descendant_ids(self, category: Category) -> list[int]:
         """
@@ -175,7 +176,7 @@ class GoodsViewSet(viewsets.ModelViewSet):
 
     queryset = (
         Goods.objects.all()
-        .select_related("ip", "category", "location")
+        .select_related("ip", "category", "location", "theme")
         .prefetch_related("characters__ip", "additional_photos")
     )
 
@@ -221,7 +222,7 @@ class GoodsViewSet(viewsets.ModelViewSet):
 
         qs = (
             Goods.objects.all()
-            .select_related("ip", "category", "location")
+            .select_related("ip", "category", "location", "theme")
             .prefetch_related("characters__ip", "additional_photos")
         )
         return qs

@@ -6,6 +6,7 @@ from .goods import GoodsFilter, GoodsPagination, GoodsViewSet
 from .ip import IPViewSet
 from .character import CharacterViewSet
 from .category import CategoryViewSet
+from .theme import ThemeViewSet
 from .bgm import bgm_create_characters, bgm_search_characters
 
 __all__ = [
@@ -15,6 +16,7 @@ __all__ = [
     "IPViewSet",
     "CharacterViewSet",
     "CategoryViewSet",
+    "ThemeViewSet",
     "bgm_search_characters",
     "bgm_create_characters",
 ]

@@ -3,11 +3,12 @@
 """
 from rest_framework import serializers
 
-from ..models import Category, Character, Goods, GuziImage, IP
+from ..models import Category, Character, Goods, GuziImage, IP, Theme
 from ..utils import compress_image
 from .category import CategorySimpleSerializer
 from .character import CharacterSimpleSerializer
 from .ip import IPSimpleSerializer
+from .theme import ThemeSimpleSerializer
 
 
 class GuziImageSerializer(serializers.ModelSerializer):
@@ -42,6 +43,7 @@ class GoodsListSerializer(serializers.ModelSerializer):
     ip = IPSimpleSerializer(read_only=True)
     characters = CharacterSimpleSerializer(many=True, read_only=True)
     category = CategorySimpleSerializer(read_only=True)
+    theme = ThemeSimpleSerializer(read_only=True)
     location_path = serializers.SerializerMethodField()
 
     class Meta:
@@ -52,6 +54,7 @@ class GoodsListSerializer(serializers.ModelSerializer):
             "ip",
             "characters",
             "category",
+            "theme",
             "location_path",
             "main_photo",
             "status",
@@ -96,6 +99,15 @@ class GoodsDetailSerializer(serializers.ModelSerializer):
         required=False,
         help_text="品类ID",
     )
+    theme = ThemeSimpleSerializer(read_only=True)
+    theme_id = serializers.PrimaryKeyRelatedField(
+        queryset=Theme.objects.all(),
+        source="theme",
+        write_only=True,
+        required=False,
+        allow_null=True,
+        help_text="主题ID（可选）",
+    )
     location_path = serializers.SerializerMethodField()
     additional_photos = GuziImageSerializer(many=True, read_only=True)
 
@@ -110,6 +122,8 @@ class GoodsDetailSerializer(serializers.ModelSerializer):
             "characters",
             "category_id",
             "category",
+            "theme_id",
+            "theme",
             "location_path",
             "location",
             "main_photo",

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Category, Character, Goods, GuziImage, IP, IPKeyword
+from .models import Category, Character, Goods, GuziImage, IP, IPKeyword, Theme
 
 
 
@@ -35,6 +35,13 @@ class CategoryAdmin(admin.ModelAdmin):
     autocomplete_fields = ("parent",)
     list_display = ("id", "name")
     search_fields = ("name",)
+    ordering = ("name",)
+
+
+@admin.register(Theme)
+class ThemeAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "created_at")
+    search_fields = ("name", "description")
     ordering = ("name",)
 
 

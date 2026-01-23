@@ -178,9 +178,42 @@ class Category(models.Model):
         return self.path_name or self.name
 
 
+class Theme(models.Model):
+    """
+    主题表，例如：夏日主题、节日主题、限定主题等
+    """
+
+    name = models.CharField(
+        max_length=100,
+        unique=True,
+        db_index=True,
+        verbose_name="主题名称",
+    )
+    description = models.TextField(
+        null=True,
+        blank=True,
+        verbose_name="主题描述",
+        help_text="主题的详细描述信息",
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        null=True,
+        blank=True,
+        verbose_name="创建时间",
+    )
+
+    class Meta:
+        verbose_name = "主题"
+        verbose_name_plural = "主题"
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return self.name
+
+
 class Goods(models.Model):
     """
-    谷子核心表，关联 IP / 角色 / 品类 以及 物理位置 StorageNode。
+    谷子核心表，关联 IP / 角色 / 品类 / 主题 以及 物理位置 StorageNode。
     """
 
     id = models.UUIDField(
@@ -202,6 +235,15 @@ class Goods(models.Model):
         on_delete=models.PROTECT,
         related_name="goods",
         verbose_name="IP作品",
+    )
+    theme = models.ForeignKey(
+        Theme,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="goods",
+        verbose_name="主题",
+        help_text="谷子所属主题，例如：夏日主题、节日主题等",
     )
     characters = models.ManyToManyField(
         Character,

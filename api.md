@@ -76,6 +76,15 @@
 | `color_tag`| Char(20，可空)          | 颜色标签，用于UI展示的颜色标识，例如：`#FF5733`                    |
 | `order`    | Integer                 | 同级展示顺序，越小越靠前，默认 0                                     |
 
+#### `Theme` 主题表
+
+| 字段名       | 类型              | 说明                                      |
+| ------------ | ----------------- | ----------------------------------------- |
+| `id`         | Integer (PK)      | 自增主键                                  |
+| `name`       | Char(100), 唯一, 索引 | 主题名称，如：`夏日主题`、`节日主题`、`限定主题` |
+| `description`| Text，可空        | 主题描述，如：`2024年夏季限定主题`         |
+| `created_at` | DateTime，可空    | 创建时间                                  |
+
 #### `Goods` 谷子核心表
 
 | 字段名         | 类型                         | 说明                                                                 |
@@ -85,6 +94,7 @@
 | `ip`           | FK -> `IP`                   | 所属作品                                                             |
 | `characters`   | M2M -> `Character[]`         | 关联角色列表（多对多关系），例如双人立牌可同时关联流萤和花火       |
 | `category`     | FK -> `Category`             | 品类                                                                 |
+| `theme`        | FK -> `Theme` (可空)         | 主题，允许为空（如：夏日主题、节日主题等）                            |
 | `location`     | FK -> `StorageNode` (可空)   | 物理存放位置，允许为空（尚未收纳 / 在路上等）                       |
 | `main_photo`   | Image(URL，可空)             | 主展示图（列表页和详情主图）                                        |
 | `quantity`     | PositiveInteger              | 数量，默认为 1                                                       |
@@ -446,6 +456,7 @@ GET /api/location/nodes/2/goods/?include_children=true
 | `ip`          | int    | IP ID，精确过滤，例如 `/api/goods/?ip=1`                                                     |
 | `character`   | int    | 单个角色 ID，精确过滤，例如 `?character=5`。匹配包含该角色的谷子                             |
 | `category`    | int    | **品类树筛选**：传入任意层级品类 ID，匹配该品类及其所有子品类下的谷子。例如：<br>- 选择"吧唧"（ID=2）可筛选出"58mm吧唧"和"75mm吧唧"等所有子品类下的谷子<br>- 选择"58mm吧唧"（ID=5）只筛选出该品类下的谷子 |
+| `theme`       | int    | 主题 ID，精确过滤，例如 `/api/goods/?theme=1`                                               |
 | `status`      | string | 单状态过滤：`in_cabinet` / `outdoor` / `sold`                                               |
 | `status__in`  | string | **多状态过滤**：逗号分隔的状态列表，如：`in_cabinet,sold`                                   |
 | `is_official` | bool   | 是否官谷筛选：`true`=只看官谷，`false`=只看非官谷。不传则不过滤                               |
@@ -475,6 +486,10 @@ GET /api/location/nodes/2/goods/?include_children=true
 > 示例 5：如果 IP `崩坏：星穹铁道` 额外配置了关键词 `崩铁`、`HSR`，则：
 >
 > `/api/goods/?search=崩铁` 或 `/api/goods/?search=HSR` 也可以命中该 IP 及其下所有相关谷子。
+>
+> 示例 6：检索指定主题的谷子：
+>
+> `/api/goods/?theme=1`（筛选主题ID为1的所有谷子）
 
 #### 响应示例（分页）
 
@@ -523,6 +538,12 @@ GET /api/location/nodes/2/goods/?include_children=true
       "category": {
         "id": 2,
         "name": "立牌"
+      },
+      "theme": {
+        "id": 1,
+        "name": "夏日主题",
+        "description": "2024年夏季限定主题",
+        "created_at": "2024-06-01T00:00:00Z"
       },
       "location_path": "卧室/书桌左侧柜子/第一层",
       "main_photo": "https://cdn.example.com/goods/main/xxx.jpg",
@@ -635,6 +656,12 @@ GET /api/location/nodes/2/goods/?include_children=true
     "color_tag": "#FFC300",
     "order": 10
   },
+  "theme": {
+    "id": 1,
+    "name": "夏日主题",
+    "description": "2024年夏季限定主题",
+    "created_at": "2024-06-01T00:00:00Z"
+  },
   "location_path": "卧室/书桌左侧柜子/第一层",
   "location": 3,
   "main_photo": "https://cdn.example.com/goods/main/xxx.jpg",
@@ -663,6 +690,7 @@ GET /api/location/nodes/2/goods/?include_children=true
 
 **字段说明补充**：
 - `characters`：关联角色数组，可包含多个角色，例如双人立牌可同时关联流萤和花火。
+- `theme`：主题信息（可选），如果谷子关联了主题，则显示主题的详细信息；如果未关联主题，则为 `null`。
 - `location`：位置节点 ID，可用于前端联动高亮位置树。
 - `additional_photos`：补充图片数组，适合做详情页图片画廊。
 
@@ -684,6 +712,7 @@ GET /api/location/nodes/2/goods/?include_children=true
   "ip_id": 1,
   "character_ids": [5, 6],
   "category_id": 1,
+  "theme_id": 1,
   "location": 3,
   "quantity": 1,
   "price": "89.00",
@@ -696,6 +725,7 @@ GET /api/location/nodes/2/goods/?include_children=true
 
 说明：
 - `character_ids`：角色ID数组，可包含多个角色，例如 `[5, 6]` 表示同时关联流萤（ID: 5）和花火（ID: 6）。
+- `theme_id`：主题ID（可选），例如 `1` 表示"夏日主题"。不传或传 `null` 表示不关联主题。
 - 主图 `main_photo` 不在此接口上传；请使用下方 `upload-main-photo`。
 - 后端会根据以下组合判断是否重复（幂等）：
   - `ip + 相同角色集合（顺序无关） + name + purchase_date + price`
@@ -1856,6 +1886,183 @@ gender: female
 
 ---
 
+### 5.4 主题 CRUD 接口
+
+主题用于对谷子进行分类标记，例如：夏日主题、节日主题、限定主题等。
+
+#### 5.4.1 获取主题列表
+
+- **URL**：`GET /api/themes/`
+- **说明**：获取所有主题列表，用于筛选器下拉选项。
+
+##### 查询参数（全部可选）
+
+| 参数名      | 类型   | 说明                                    |
+| ----------- | ------ | --------------------------------------- |
+| `name`      | string | 按主题名精确或模糊匹配（`exact` / `icontains`） |
+| `search`    | string | 轻量搜索：在 `name`、`description` 上匹配 |
+
+##### 响应示例
+
+```json
+[
+  {
+    "id": 1,
+    "name": "夏日主题",
+    "description": "2024年夏季限定主题",
+    "created_at": "2024-06-01T00:00:00Z"
+  },
+  {
+    "id": 2,
+    "name": "节日主题",
+    "description": "节日限定主题",
+    "created_at": "2024-09-01T00:00:00Z"
+  }
+]
+```
+
+**字段说明**：
+- `id`：主题 ID，用于后续筛选参数。
+- `name`：主题名称。
+- `description`：主题描述（可选）。
+- `created_at`：创建时间。
+
+**使用示例**：
+- 搜索主题：`GET /api/themes/?search=夏日`
+- 精确匹配：`GET /api/themes/?name=夏日主题`
+
+---
+
+#### 5.4.2 获取主题详情
+
+- **URL**：`GET /api/themes/{id}/`
+- **说明**：获取单个主题的详细信息。
+
+##### 路径参数
+
+| 参数名 | 类型 | 说明            |
+| ------ | ---- | --------------- |
+| `id`   | int  | 主题主键 `id`   |
+
+##### 响应示例
+
+```json
+{
+  "id": 1,
+  "name": "夏日主题",
+  "description": "2024年夏季限定主题",
+  "created_at": "2024-06-01T00:00:00Z"
+}
+```
+
+**字段说明**：同 5.4.1 响应示例。
+
+---
+
+#### 5.4.3 创建主题
+
+- **URL**：`POST /api/themes/`
+- **说明**：创建新主题。
+
+##### 请求体（JSON）
+
+```json
+{
+  "name": "夏日主题",
+  "description": "2024年夏季限定主题"
+}
+```
+
+##### 字段说明
+
+| 字段名       | 类型   | 必填 | 说明                                      |
+| ------------ | ------ | ---- | ----------------------------------------- |
+| `name`       | string | 是   | 主题名称，必须唯一，最大长度100字符       |
+| `description`| string | 否   | 主题描述，最大长度不限                    |
+
+##### 响应
+
+返回创建后的主题详情（同 5.4.2）。
+
+---
+
+#### 5.4.4 更新主题
+
+- **URL**：`PUT /api/themes/{id}/`（完整更新）
+- **URL**：`PATCH /api/themes/{id}/`（部分更新）
+- **说明**：更新主题信息。
+
+##### 路径参数
+
+| 参数名 | 类型 | 说明            |
+| ------ | ---- | --------------- |
+| `id`   | int  | 主题主键 `id`   |
+
+##### 请求体（JSON）
+
+**完整更新（PUT）**：
+
+```json
+{
+  "name": "夏日主题（更新）",
+  "description": "2024年夏季限定主题（已更新）"
+}
+```
+
+**部分更新（PATCH）**：
+
+```json
+{
+  "description": "2024年夏季限定主题（已更新）"
+}
+```
+
+##### 字段说明
+
+| 字段名       | 类型   | 必填 | 说明                                      |
+| ------------ | ------ | ---- | ----------------------------------------- |
+| `name`       | string | 否   | 主题名称，最大长度100字符（PUT 必填，PATCH 可选） |
+| `description`| string | 否   | 主题描述（PUT 可选，PATCH 可选）          |
+
+##### 响应
+
+返回更新后的主题详情（同 5.4.2）。
+
+---
+
+#### 5.4.5 删除主题
+
+- **URL**：`DELETE /api/themes/{id}/`
+- **说明**：删除指定的主题。删除主题时，关联到该主题的谷子的 `theme` 字段会被设置为 `null`（因为使用了 `SET_NULL` 策略）。
+
+##### 路径参数
+
+| 参数名 | 类型 | 说明            |
+| ------ | ---- | --------------- |
+| `id`   | int  | 主题主键 `id`   |
+
+##### 删除行为说明
+
+1. **关联处理**：删除主题时，所有关联到该主题的谷子的 `theme` 字段会被自动设置为 `null`，不会删除谷子记录。
+2. **事务保护**：删除操作在数据库事务中执行，确保原子性。
+
+##### 响应
+
+- **成功**：返回 `204 No Content`
+- **失败**：`404 Not Found`（主题不存在）
+
+##### 示例
+
+假设有以下数据：
+- 主题：`夏日主题`（id: 1）
+- 谷子 A（id: abc123）关联到主题 1
+
+删除 `夏日主题`（id: 1）时：
+- 主题记录被删除
+- 谷子 A 的 `theme` 字段会被设置为 `null`
+
+---
+
 ## 六、限流与性能注意事项（给前端的协作建议）
 
 ### 6.1 限流（Throttling）
@@ -1881,11 +2088,12 @@ gender: female
      - `GET /api/ips/`：IP作品列表，用于筛选器
      - `GET /api/characters/`：角色列表，用于筛选器（可按需按IP过滤）
      - `GET /api/categories/tree/`：品类树（扁平列表），用于筛选器和树形展示
+     - `GET /api/themes/`：主题列表，用于筛选器
    - 建议将这些数据缓存到前端状态管理，避免重复请求。
 
 2. **云展柜列表页**
    - 使用 `GET /api/goods/`，根据筛选条件拼 query：
-     - `ip` / `character` / `category` / `status` / `status__in` / `location` / `search`。
+     - `ip` / `character` / `category` / `theme` / `status` / `status__in` / `location` / `search`。
    - 列表 Item 展示：
      - 主图：`main_photo`
      - 标题：`name`

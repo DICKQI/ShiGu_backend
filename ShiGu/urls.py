@@ -27,6 +27,7 @@ from apps.goods.views import (
     CharacterViewSet,
     GoodsViewSet,
     IPViewSet,
+    ThemeViewSet,
 )
 from apps.location.views import (
     StorageNodeDetailView,
@@ -40,6 +41,7 @@ router.register("goods", GoodsViewSet, basename="goods")
 router.register("ips", IPViewSet, basename="ips")
 router.register("characters", CharacterViewSet, basename="characters")
 router.register("categories", CategoryViewSet, basename="categories")
+router.register("themes", ThemeViewSet, basename="themes")
 
 urlpatterns = [
     path('admin/', admin.site.urls),
