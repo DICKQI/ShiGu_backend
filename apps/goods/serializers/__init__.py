@@ -26,6 +26,14 @@ from .goods import (
     GoodsMoveSerializer,
     GuziImageSerializer,
 )
+from .showcase import (
+    AddGoodsToShowcaseSerializer,
+    MoveGoodsInShowcaseSerializer,
+    RemoveGoodsFromShowcaseSerializer,
+    ShowcaseDetailSerializer,
+    ShowcaseGoodsSerializer,
+    ShowcaseListSerializer,
+)
 from .bgm import (
     BGMCharacterSerializer,
     BGMCreateCharacterRequestSerializer,
@@ -58,6 +66,13 @@ __all__ = [
     "GoodsListSerializer",
     "GoodsDetailSerializer",
     "GoodsMoveSerializer",
+    # Showcase
+    "ShowcaseListSerializer",
+    "ShowcaseDetailSerializer",
+    "ShowcaseGoodsSerializer",
+    "AddGoodsToShowcaseSerializer",
+    "RemoveGoodsFromShowcaseSerializer",
+    "MoveGoodsInShowcaseSerializer",
     # BGM
     "BGMSearchRequestSerializer",
     "BGMCharacterSerializer",

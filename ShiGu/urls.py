@@ -27,6 +27,7 @@ from apps.goods.views import (
     CharacterViewSet,
     GoodsViewSet,
     IPViewSet,
+    ShowcaseViewSet,
     ThemeViewSet,
 )
 from apps.location.views import (
@@ -42,6 +43,7 @@ router.register("ips", IPViewSet, basename="ips")
 router.register("characters", CharacterViewSet, basename="characters")
 router.register("categories", CategoryViewSet, basename="categories")
 router.register("themes", ThemeViewSet, basename="themes")
+router.register("showcases", ShowcaseViewSet, basename="showcases")
 
 urlpatterns = [
     path('admin/', admin.site.urls),

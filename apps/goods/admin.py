@@ -1,6 +1,16 @@
 from django.contrib import admin
 
-from .models import Category, Character, Goods, GuziImage, IP, IPKeyword, Theme
+from .models import (
+    Category,
+    Character,
+    Goods,
+    GuziImage,
+    IP,
+    IPKeyword,
+    Showcase,
+    ShowcaseGoods,
+    Theme,
+)
 
 
 
@@ -97,4 +107,29 @@ class GoodsAdmin(admin.ModelAdmin):
         return ", ".join([char.name for char in obj.characters.all()])
 
     get_characters.short_description = "角色"
+
+
+class ShowcaseGoodsInline(admin.TabularInline):
+    model = ShowcaseGoods
+    extra = 1
+    autocomplete_fields = ("goods",)
+
+
+@admin.register(Showcase)
+class ShowcaseAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "order", "is_public", "created_at")
+    list_filter = ("is_public", "created_at")
+    search_fields = ("name", "description")
+    ordering = ("order", "-created_at")
+    readonly_fields = ("created_at", "updated_at")
+    inlines = [ShowcaseGoodsInline]
+
+
+@admin.register(ShowcaseGoods)
+class ShowcaseGoodsAdmin(admin.ModelAdmin):
+    list_display = ("id", "showcase", "goods", "order", "created_at")
+    list_filter = ("showcase", "created_at")
+    search_fields = ("showcase__name", "goods__name")
+    autocomplete_fields = ("showcase", "goods")
+    ordering = ("showcase", "order", "-created_at")
 

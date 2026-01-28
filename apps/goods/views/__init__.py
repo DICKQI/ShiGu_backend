@@ -7,6 +7,7 @@ from .ip import IPViewSet
 from .character import CharacterViewSet
 from .category import CategoryViewSet
 from .theme import ThemeViewSet
+from .showcase import ShowcaseViewSet
 from .bgm import bgm_create_characters, bgm_search_characters
 
 __all__ = [
@@ -17,6 +18,7 @@ __all__ = [
     "CharacterViewSet",
     "CategoryViewSet",
     "ThemeViewSet",
+    "ShowcaseViewSet",
     "bgm_search_characters",
     "bgm_create_characters",
 ]
