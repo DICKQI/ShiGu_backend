@@ -2842,6 +2842,21 @@ gender: female
 > - 如果使用 JSON 格式，`cover_image` 字段暂不支持（需后续单独上传）
 > - 如果使用 `multipart/form-data` 格式，可以同时上传封面图片，后台会自动压缩到约 300KB 以下
 
+#### 9.1.3.1 展柜封面上传 / 更新接口
+
+- **URL**：`POST /api/showcases/{id}/upload-cover-image/`
+- **请求方式**：`multipart/form-data`
+- **字段**：`cover_image`（文件，必填）
+- **说明**：独立上传或更新展柜封面，后台会自动压缩到约 300KB 以下（若需要）。
+
+示例（form-data）：
+
+```
+cover_image: <file>
+```
+
+响应：返回更新后的展柜详情（同 9.1.2）。
+
 ##### 响应
 
 返回创建后的展柜详情（同 9.1.2）。

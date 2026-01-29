@@ -5,6 +5,7 @@ from django.db import transaction
 from django.db.models import Min, Q
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
@@ -17,6 +18,7 @@ from ..serializers.showcase import (
     ShowcaseGoodsSerializer,
     ShowcaseListSerializer,
 )
+from ..utils import compress_image
 
 
 class ShowcasePagination(PageNumberPagination):
@@ -78,6 +80,34 @@ class ShowcaseViewSet(viewsets.ModelViewSet):
         )
         next_order = (min_order or 0) - self.ORDER_STEP
         serializer.save(order=next_order)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="upload-cover-image",
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def upload_cover_image(self, request, pk=None):
+        """
+        独立上传/更新展柜封面接口，使用 multipart/form-data，字段名：cover_image
+        """
+        instance = self.get_object()
+        cover_image = request.FILES.get("cover_image")
+
+        if not cover_image:
+            return Response(
+                {"detail": "请通过 form-data 提供 cover_image 文件"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        compressed = compress_image(cover_image, max_size_kb=300)
+        instance.cover_image = compressed or cover_image
+        instance.save(update_fields=["cover_image", "updated_at"])
+
+        serializer = ShowcaseDetailSerializer(
+            instance, context=self.get_serializer_context()
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["get"], url_path="goods")
     def goods(self, request, pk=None):
