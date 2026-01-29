@@ -2715,6 +2715,12 @@ gender: female
       "name": "我的收藏展柜",
       "description": "展示我最喜欢的谷子",
       "cover_image": "https://cdn.example.com/showcases/covers/xxx.jpg",
+      "preview_photos": [
+        "https://cdn.example.com/goods/main/1.jpg",
+        "https://cdn.example.com/goods/main/2.jpg",
+        "https://cdn.example.com/goods/main/3.jpg",
+        "https://cdn.example.com/goods/main/4.jpg"
+      ],
       "order": 0,
       "created_at": "2024-09-21T10:00:00Z"
     },
@@ -2723,6 +2729,7 @@ gender: female
       "name": "星铁主题展柜",
       "description": "崩坏：星穹铁道相关谷子",
       "cover_image": null,
+      "preview_photos": [],
       "order": 1000,
       "created_at": "2024-09-22T10:00:00Z"
     }
@@ -2735,6 +2742,7 @@ gender: female
 - `name`：展柜名称
 - `description`：展柜描述（可选）
 - `cover_image`：封面图片 URL（可选）
+- `preview_photos`：该展柜下**前四个谷子**的主图地址列表（最多 4 个）。列表元素为 URL 字符串；若展柜下无谷子或这些谷子未设置主图，则可能为空数组 `[]`
 - `order`：排序值，值越小越靠前
 - `created_at`：创建时间
 
