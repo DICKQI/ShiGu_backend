@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'django_filters',
     'corsheaders',  # 跨域支持
     'django_extensions',
+    'drf_spectacular',
     # 本地应用
     "apps.goods.apps.GoodsConfig",
     "apps.location.apps.LocationConfig"
@@ -147,6 +148,14 @@ REST_FRAMEWORK = {
         # 核心检索接口限流：每分钟 60 次（可根据设备/网络情况再调）
         "goods_search": "60/minute",
     },
+    # 指定使用的 Schema 类
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'SHIGU API',
+    'DESCRIPTION': 'SHIGU API Documentation',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
 }
 
 # CORS 跨域配置

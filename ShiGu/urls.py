@@ -18,6 +18,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
+from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 from rest_framework.routers import DefaultRouter
 
 from apps.goods.views import (
@@ -57,6 +58,11 @@ urlpatterns = [
     path("api/location/nodes/<int:pk>/", StorageNodeDetailView.as_view(), name="location-node-detail"),
     path("api/location/nodes/<int:pk>/goods/", StorageNodeGoodsView.as_view(), name="location-node-goods"),
     path("api/location/tree/", StorageNodeTreeView.as_view(), name="location-tree"),
+    # 导出 Schema 文件 (YAML格式)
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    # 导出 Swagger UI 和 Redoc 界面
+    path('api/schema/swagger-ui/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('api/schema/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 ]
 
 # 开发环境：提供媒体文件访问服务
