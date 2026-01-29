@@ -5,12 +5,16 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from ..bgm_service import search_ip_characters
+from ..bgm_service import search_ip_characters, search_subjects_list, get_subject_info, get_characters
 from ..models import Character, IP
 from ..serializers import (
     BGMCreateCharactersRequestSerializer,
     BGMSearchRequestSerializer,
     BGMSearchResponseSerializer,
+    BGMSearchSubjectsRequestSerializer,
+    BGMSearchSubjectsResponseSerializer,
+    BGMGetCharactersBySubjectIdRequestSerializer,
+    BGMGetCharactersBySubjectIdResponseSerializer,
 )
 
 
@@ -177,3 +181,119 @@ def bgm_create_characters(request):
         "skipped": skipped_count,
         "details": details
     }, status=status.HTTP_200_OK)
+
+
+# ==================== 新增：两步式搜索接口 ====================
+
+@api_view(['POST'])
+def bgm_search_subjects(request):
+    """
+    搜索IP作品列表（第一步）
+    
+    POST /api/bgm/search-subjects/
+    
+    请求体:
+    {
+        "keyword": "崩坏",
+        "subject_type": 4  // 可选，作品类型：1=书籍, 2=动画, 3=音乐, 4=游戏, 6=三次元
+    }
+    
+    响应:
+    {
+        "subjects": [
+            {
+                "id": 12345,
+                "name": "崩坏：星穹铁道",
+                "name_cn": "崩坏：星穹铁道",
+                "type": 4,
+                "type_name": "游戏",
+                "image": "https://..."
+            },
+            ...
+        ]
+    }
+    """
+    serializer = BGMSearchSubjectsRequestSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    
+    keyword = serializer.validated_data['keyword']
+    subject_type = serializer.validated_data.get('subject_type')
+    
+    try:
+        subjects = search_subjects_list(keyword, subject_type)
+        
+        response_data = {
+            "subjects": subjects
+        }
+        
+        response_serializer = BGMSearchSubjectsResponseSerializer(data=response_data)
+        response_serializer.is_valid(raise_exception=True)
+        
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response(
+            {"detail": f"搜索失败: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+def bgm_get_characters_by_subject_id(request):
+    """
+    根据BGM作品ID获取角色列表（第二步）
+    
+    POST /api/bgm/get-characters-by-id/
+    
+    请求体:
+    {
+        "subject_id": 12345
+    }
+    
+    响应:
+    {
+        "subject_id": 12345,
+        "subject_name": "崩坏：星穹铁道",
+        "characters": [
+            {
+                "name": "流萤",
+                "relation": "主角",
+                "avatar": "https://..."
+            },
+            ...
+        ]
+    }
+    """
+    serializer = BGMGetCharactersBySubjectIdRequestSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    
+    subject_id = serializer.validated_data['subject_id']
+    
+    try:
+        # 获取作品信息
+        subject_info = get_subject_info(subject_id)
+        if not subject_info:
+            return Response(
+                {"detail": f"未找到ID为 {subject_id} 的作品"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # 获取角色列表
+        characters = get_characters(subject_id)
+        
+        response_data = {
+            "subject_id": subject_id,
+            "subject_name": subject_info.get("display_name", ""),
+            "characters": characters
+        }
+        
+        response_serializer = BGMGetCharactersBySubjectIdResponseSerializer(data=response_data)
+        response_serializer.is_valid(raise_exception=True)
+        
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response(
+            {"detail": f"获取角色失败: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

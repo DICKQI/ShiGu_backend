@@ -24,6 +24,8 @@ from rest_framework.routers import DefaultRouter
 from apps.goods.views import (
     bgm_create_characters,
     bgm_search_characters,
+    bgm_search_subjects,
+    bgm_get_characters_by_subject_id,
     CategoryViewSet,
     CharacterViewSet,
     GoodsViewSet,
@@ -53,6 +55,9 @@ urlpatterns = [
     # BGM API接口
     path("api/bgm/search-characters/", bgm_search_characters, name="bgm-search-characters"),
     path("api/bgm/create-characters/", bgm_create_characters, name="bgm-create-characters"),
+    # BGM 两步式搜索接口
+    path("api/bgm/search-subjects/", bgm_search_subjects, name="bgm-search-subjects"),
+    path("api/bgm/get-characters-by-id/", bgm_get_characters_by_subject_id, name="bgm-get-characters-by-id"),
     # 位置相关接口
     path("api/location/nodes/", StorageNodeListCreateView.as_view(), name="location-nodes"),
     path("api/location/nodes/<int:pk>/", StorageNodeDetailView.as_view(), name="location-node-detail"),

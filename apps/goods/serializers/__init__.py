@@ -40,6 +40,11 @@ from .bgm import (
     BGMCreateCharactersRequestSerializer,
     BGMSearchRequestSerializer,
     BGMSearchResponseSerializer,
+    BGMSubjectSerializer,
+    BGMSearchSubjectsRequestSerializer,
+    BGMSearchSubjectsResponseSerializer,
+    BGMGetCharactersBySubjectIdRequestSerializer,
+    BGMGetCharactersBySubjectIdResponseSerializer,
 )
 
 __all__ = [
@@ -79,4 +84,9 @@ __all__ = [
     "BGMSearchResponseSerializer",
     "BGMCreateCharacterRequestSerializer",
     "BGMCreateCharactersRequestSerializer",
+    "BGMSubjectSerializer",
+    "BGMSearchSubjectsRequestSerializer",
+    "BGMSearchSubjectsResponseSerializer",
+    "BGMGetCharactersBySubjectIdRequestSerializer",
+    "BGMGetCharactersBySubjectIdResponseSerializer",
 ]

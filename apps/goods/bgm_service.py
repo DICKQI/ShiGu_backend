@@ -144,6 +144,121 @@ def get_characters(subject_id):
         raise Exception(f"获取角色请求失败: {str(e)}")
 
 
+def search_subjects_list(keyword, subject_type=None):
+    """
+    搜索条目，返回所有匹配结果的列表。
+    使用 Legacy Search API 进行模糊匹配。
+    
+    Args:
+        keyword (str): 搜索关键词（IP名称）
+        subject_type (int, optional): 作品类型 (1:书籍, 2:动画, 3:音乐, 4:游戏, 6:三次元). 默认为 None (搜索所有).
+    
+    Returns:
+        list: 作品列表，每个作品包含 id, name, name_cn, type, type_name, image 等字段
+    """
+    # 作品类型映射
+    TYPE_NAMES = {
+        1: "书籍",
+        2: "动画",
+        3: "音乐",
+        4: "游戏",
+        6: "三次元/特摄"
+    }
+    
+    # URL 路径中的关键词需要手动编码
+    encoded_keyword = urllib.parse.quote(keyword)
+    url = f"{API_HOST}/search/subject/{encoded_keyword}"
+    
+    # 构造查询参数
+    params = {
+        "responseGroup": "small"
+    }
+    # 如果指定了类型，则添加到参数中
+    if subject_type:
+        params["type"] = subject_type
+    
+    try:
+        # requests 会自动处理 params 的拼接
+        response = requests.get(url, headers=get_headers(), params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        subjects = []
+        if "list" in data and data["list"]:
+            for item in data["list"]:
+                subject_id = item.get("id")
+                name = item.get("name", "")
+                name_cn = item.get("name_cn", "")
+                subject_type_code = item.get("type")
+                
+                # 解码HTML实体
+                if name:
+                    name = html.unescape(name)
+                if name_cn:
+                    name_cn = html.unescape(name_cn)
+                
+                # 获取封面图
+                images = item.get("images", {})
+                image_url = ""
+                if isinstance(images, dict):
+                    # 优先使用 large，其次 common，最后 medium
+                    image_url = images.get("large") or images.get("common") or images.get("medium", "")
+                
+                subjects.append({
+                    "id": subject_id,
+                    "name": name,
+                    "name_cn": name_cn,
+                    "type": subject_type_code,
+                    "type_name": TYPE_NAMES.get(subject_type_code, "未知"),
+                    "image": image_url
+                })
+        
+        return subjects
+
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"搜索请求失败: {str(e)}")
+
+
+def get_subject_info(subject_id):
+    """
+    根据BGM作品ID获取作品基本信息
+    
+    Args:
+        subject_id (int): BGM作品ID
+    
+    Returns:
+        dict: 作品信息，包含 id, name, name_cn 等字段，如果未找到返回 None
+    """
+    url = f"{API_HOST}/v0/subjects/{subject_id}"
+    
+    try:
+        response = requests.get(url, headers=get_headers(), timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        name = data.get("name", "")
+        name_cn = data.get("name_cn", "")
+        
+        # 解码HTML实体
+        if name:
+            name = html.unescape(name)
+        if name_cn:
+            name_cn = html.unescape(name_cn)
+        
+        # 优先返回中文名
+        display_name = name_cn if name_cn else name
+        
+        return {
+            "id": subject_id,
+            "name": name,
+            "name_cn": name_cn,
+            "display_name": display_name
+        }
+
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"获取作品信息失败: {str(e)}")
+
+
 def search_ip_characters(ip_name, subject_type=None):
     """
     搜索IP作品并获取其角色列表的便捷方法

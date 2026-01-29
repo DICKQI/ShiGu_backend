@@ -8,7 +8,12 @@ from .character import CharacterViewSet
 from .category import CategoryViewSet
 from .theme import ThemeViewSet
 from .showcase import ShowcaseViewSet
-from .bgm import bgm_create_characters, bgm_search_characters
+from .bgm import (
+    bgm_create_characters,
+    bgm_search_characters,
+    bgm_search_subjects,
+    bgm_get_characters_by_subject_id,
+)
 
 __all__ = [
     "GoodsViewSet",
@@ -21,4 +26,6 @@ __all__ = [
     "ShowcaseViewSet",
     "bgm_search_characters",
     "bgm_create_characters",
+    "bgm_search_subjects",
+    "bgm_get_characters_by_subject_id",
 ]

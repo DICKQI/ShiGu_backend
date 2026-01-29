@@ -64,3 +64,49 @@ class BGMCreateCharactersRequestSerializer(serializers.Serializer):
         required=True,
         help_text="角色列表，每个角色包含ip_name和character_name"
     )
+
+
+# ==================== 新增：两步式搜索相关序列化器 ====================
+
+class BGMSubjectSerializer(serializers.Serializer):
+    """BGM作品信息序列化器"""
+    id = serializers.IntegerField(help_text="BGM作品ID")
+    name = serializers.CharField(help_text="作品原名")
+    name_cn = serializers.CharField(allow_blank=True, help_text="作品中文名")
+    type = serializers.IntegerField(help_text="作品类型代码：1=书籍, 2=动画, 3=音乐, 4=游戏, 6=三次元/特摄")
+    type_name = serializers.CharField(help_text="作品类型名称")
+    image = serializers.CharField(allow_blank=True, help_text="作品封面图URL")
+
+
+class BGMSearchSubjectsRequestSerializer(serializers.Serializer):
+    """搜索IP作品列表请求序列化器"""
+    keyword = serializers.CharField(
+        max_length=200,
+        required=True,
+        help_text="搜索关键词，例如：崩坏"
+    )
+    subject_type = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        help_text="作品类型筛选：1=书籍, 2=动画, 3=音乐, 4=游戏, 6=三次元。不传则搜索所有类型"
+    )
+
+
+class BGMSearchSubjectsResponseSerializer(serializers.Serializer):
+    """搜索IP作品列表响应序列化器"""
+    subjects = BGMSubjectSerializer(many=True, help_text="作品列表")
+
+
+class BGMGetCharactersBySubjectIdRequestSerializer(serializers.Serializer):
+    """根据BGM作品ID获取角色请求序列化器"""
+    subject_id = serializers.IntegerField(
+        required=True,
+        help_text="BGM作品ID"
+    )
+
+
+class BGMGetCharactersBySubjectIdResponseSerializer(serializers.Serializer):
+    """根据BGM作品ID获取角色响应序列化器"""
+    subject_id = serializers.IntegerField(help_text="BGM作品ID")
+    subject_name = serializers.CharField(help_text="作品名称")
+    characters = BGMCharacterSerializer(many=True, help_text="角色列表")
