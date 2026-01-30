@@ -1,6 +1,7 @@
 """
 BGM API 相关的视图函数
 """
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -18,6 +19,12 @@ from ..serializers import (
 )
 
 
+@extend_schema(
+    summary="搜索IP作品并获取角色列表",
+    description="通过IP名称搜索作品，并返回该作品下的角色列表。",
+    request=BGMSearchRequestSerializer,
+    responses={200: BGMSearchResponseSerializer}
+)
 @api_view(['POST'])
 def bgm_search_characters(request):
     """
@@ -76,6 +83,12 @@ def bgm_search_characters(request):
         )
 
 
+@extend_schema(
+    summary="批量创建IP和角色",
+    description="只能根据已有角色列表批量创建或更新IP和角色信息。",
+    request=BGMCreateCharactersRequestSerializer,
+    responses={200: None}  # 响应结构较复杂，暂时省略或后续补充Serializer
+)
 @api_view(['POST'])
 def bgm_create_characters(request):
     """
@@ -185,6 +198,12 @@ def bgm_create_characters(request):
 
 # ==================== 新增：两步式搜索接口 ====================
 
+@extend_schema(
+    summary="搜索IP作品列表（第一步）",
+    description="通过关键字搜索相关的IP作品列表。这是两步搜索的第一步。",
+    request=BGMSearchSubjectsRequestSerializer,
+    responses={200: BGMSearchSubjectsResponseSerializer}
+)
 @api_view(['POST'])
 def bgm_search_subjects(request):
     """
@@ -238,6 +257,12 @@ def bgm_search_subjects(request):
         )
 
 
+@extend_schema(
+    summary="根据BGM作品ID获取角色列表（第二步）",
+    description="根据选定的作品ID，获取该作品下的角色信息。这是两步搜索的第二步。",
+    request=BGMGetCharactersBySubjectIdRequestSerializer,
+    responses={200: BGMGetCharactersBySubjectIdResponseSerializer}
+)
 @api_view(['POST'])
 def bgm_get_characters_by_subject_id(request):
     """
