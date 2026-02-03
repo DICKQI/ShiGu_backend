@@ -189,9 +189,16 @@ class Theme(models.Model):
         db_index=True,
         verbose_name="主题名称",
     )
+    DESCRIPTION_DEFAULT = (
+        "店铺：\n"
+        "工艺：\n"
+        "画师：\n"
+        "主题："
+    )
     description = models.TextField(
         null=True,
         blank=True,
+        default=DESCRIPTION_DEFAULT,
         verbose_name="主题描述",
         help_text="主题的详细描述信息",
     )
