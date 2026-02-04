@@ -159,6 +159,51 @@
 
 ---
 
+### 1.3 用户模块（`apps.users`）
+
+#### `Role` 角色表
+
+用于标识系统内的角色，例如：`admin`（管理员）、`user`（普通用户）等。
+
+| 字段名      | 类型             | 说明                         |
+| ----------- | ---------------- | ---------------------------- |
+| `id`        | Integer (PK)     | 自增主键                     |
+| `name`      | Char(50), 唯一, 索引 | 角色名称，如：`admin`、`user` |
+| `created_at`| DateTime         | 创建时间                     |
+
+> 说明：当前版本中，**是否为管理员**由 `User.role.name` 是否等于 `"admin"` 判断（区分大小写前会统一转为小写）。
+
+#### `User` 用户表
+
+系统自建的用户表，不继承 Django 自带 `auth_user`。所有业务数据（如谷子、展柜、收纳位置等）的“所属用户”字段都指向该表。
+
+| 字段名      | 类型                 | 说明                                                                 |
+| ----------- | -------------------- | -------------------------------------------------------------------- |
+| `id`        | Integer (PK)         | 自增主键                                                             |
+| `username`  | Char(150), 唯一, 索引| 登录用户名，唯一；建议只包含字母、数字、下划线，不区分大小写逻辑由上层控制 |
+| `password`  | Char(255)            | **密码哈希**（使用 Django 内置加密算法存储，接口永不返回原文密码）   |
+| `role`      | FK -> `Role`         | 用户角色，配合 RBAC 控制权限；删除角色时被 `PROTECT`，无法误删      |
+| `is_active` | Boolean              | 是否启用该账号，默认 `true`；禁用后无法登录                          |
+| `created_at`| DateTime             | 创建时间                                                             |
+| `updated_at`| DateTime             | 最近更新时间                                                         |
+
+> 补充：
+> - 模型内部提供 `set_password(raw_password)` / `check_password(raw_password)` 方法，统一处理密码加密与校验。
+> - 为了兼容 DRF 的认证逻辑，`User` 实现了只读属性 `is_authenticated`，永远返回 `true`（只要通过认证中间件拿到的就是已登录用户）。
+
+#### `Permission` 权限表（预留）
+
+用于预留更细粒度的权限控制，目前版本主要仍以角色维度（`Role`）结合策略控制，尚未在业务接口中直接使用该表。
+
+| 字段名      | 类型             | 说明                         |
+| ----------- | ---------------- | ---------------------------- |
+| `id`        | Integer (PK)     | 自增主键                     |
+| `code`      | Char(100), 唯一, 索引 | 权限编码，如：`goods.view`、`goods.edit` 等 |
+| `name`      | Char(100)        | 权限名称，便于后台管理展示   |
+| `created_at`| DateTime         | 创建时间                     |
+
+---
+
 ## 二、鉴权与通用说明
 
 当前版本已接入 **自建用户体系 + JWT Token 鉴权**，所有业务接口默认要求登录。
@@ -166,6 +211,7 @@
 - **认证方式**：HTTP Header 携带 `Authorization: Bearer <access_token>`
 - **获取 Token**：通过账号注册/登录接口获取 `access_token`
 - **未登录/Token 无效**：除登录/注册接口外，访问任意 API 将返回 `401 Unauthorized`
+- **登出语义**：当前版本采用**无状态 JWT**，服务端不维护会话或 Token 黑名单；调用登出接口仅表示前端应删除本地缓存的 Token，一旦 Token 泄露，在过期前仍可能被他方使用
 
 错误响应统一使用 DRF 默认格式，例如：
 
@@ -300,6 +346,31 @@ Authorization: Bearer <access_token>
 >
 > - `User`：普通用户，只能访问/修改自己的私有数据（Goods / Theme / Showcase / StorageNode）
 > - `Admin`：管理员，可管理公共元数据（IP / 角色 / 品类），并可查看所有用户数据
+
+---
+
+### 2.4 账号登出
+
+- **URL**：`DELETE /api/auth/logout/`
+- **说明**：
+  - 使用当前请求头中的 JWT Token 执行“登出”动作
+  - 由于后端采用无状态 JWT，本接口不会在服务端持久化会话或写入黑名单
+  - 前端在该接口返回成功（204）后，**必须删除本地缓存的 Token**（如 LocalStorage 中的 `access_token`）
+- **是否需要携带 Authorization**：是
+
+#### 请求头
+
+```http
+Authorization: Bearer <access_token>
+```
+
+#### 响应
+
+- 成功：
+  - 状态码：`204 No Content`
+  - 响应体：无（空响应体）
+- 失败：
+  - 未携带或 Token 无效时，由全局认证返回 `401 Unauthorized`，错误格式同前文“鉴权与通用说明”中的示例
 
 ---
 

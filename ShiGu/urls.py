@@ -55,6 +55,7 @@ urlpatterns = [
     path("api/auth/register/", user_views.register, name="auth-register"),
     path("api/auth/login/", user_views.login, name="auth-login"),
     path("api/auth/me/", user_views.me, name="auth-me"),
+    path("api/auth/logout/", user_views.logout, name="auth-logout"),
     # 核心检索接口
     path("api/", include(router.urls)),
     # BGM API接口
