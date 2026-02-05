@@ -56,6 +56,9 @@ urlpatterns = [
     path("api/auth/login/", user_views.login, name="auth-login"),
     path("api/auth/me/", user_views.me, name="auth-me"),
     path("api/auth/logout/", user_views.logout, name="auth-logout"),
+    # 展柜独立接口
+    path("api/showcases/public/", ShowcaseViewSet.as_view({"get": "public_list"}), name="showcases-public"),
+    path("api/showcases/private/", ShowcaseViewSet.as_view({"get": "private_list"}), name="showcases-private"),
     # 核心检索接口
     path("api/", include(router.urls)),
     # BGM API接口

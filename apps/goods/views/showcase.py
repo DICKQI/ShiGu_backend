@@ -7,6 +7,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from ..models import Goods, Showcase, ShowcaseGoods
@@ -56,7 +57,7 @@ class ShowcaseViewSet(viewsets.ModelViewSet):
     ORDER_STEP = 1000
 
     def get_serializer_class(self):
-        if self.action == "list":
+        if self.action in ["list", "public_list", "private_list"]:
             return ShowcaseListSerializer
         return ShowcaseDetailSerializer
 
@@ -74,12 +75,49 @@ class ShowcaseViewSet(viewsets.ModelViewSet):
             )
             .select_related()
         )
+        
+        # 如果是公共列表动作，直接返回公开的展柜
+        if self.action in ['public_list', 'public']:
+            return qs.filter(is_public=True)
+            
+        # 如果是私有列表动作，返回当前用户的展柜
+        if self.action in ['private_list', 'private']:
+            if self.request.user.is_authenticated:
+                return qs.filter(user=self.request.user)
+            return qs.none()
+
         user = getattr(self.request, "user", None)
         if not user or not getattr(user, "id", None):
+            # 对于匿名用户，如果是获取详情且该展柜是公开的，允许访问
+            if self.action == 'retrieve':
+                return qs.filter(is_public=True)
             return qs.none()
+            
         if is_admin(user):
             return qs
         return qs.filter(Q(user=user) | Q(is_public=True))
+
+    @action(detail=False, methods=["get"], url_path="public", permission_classes=[AllowAny])
+    def public_list(self, request):
+        """获取公共展柜列表"""
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=["get"], url_path="private", permission_classes=[IsAuthenticated])
+    def private_list(self, request):
+        """获取私有展柜列表（我的展柜）"""
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     def perform_create(self, serializer):
         """创建展柜时自动分配排序值"""
