@@ -125,7 +125,7 @@ class ShowcaseViewSet(viewsets.ModelViewSet):
         # 再次打乱顺序，确保展示的随机性
         random.shuffle(data)
 
-        return Response(data)
+        return Response({"results": data})
 
     @action(detail=False, methods=["get"], url_path="private", permission_classes=[IsAuthenticated])
     def private_list(self, request):
