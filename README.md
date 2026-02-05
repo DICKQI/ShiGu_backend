@@ -9,9 +9,41 @@
 [![DRF](https://img.shields.io/badge/DRF-3.14+-red.svg)](https://www.django-rest-framework.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-[功能特性](#-核心特性) • [快速开始](#-快速开始) • [API 文档](#-api-说明) • [项目架构](#-代码结构)
+[功能特性](#-核心特性) • [项目架构](#-项目架构) • [快速开始](#-快速开始) • [API 文档](#-api-说明) • [代码结构](#-代码结构)
 
 </div>
+
+---
+
+## 🏗️ 项目架构
+
+```text
+┌────────────────┐      REST API      ┌──────────────────────────────┐
+│  前端 / 移动端  │ <────────────────> │    ShiGu 后端 (Django/DRF)    │
+└────────────────┘   (JWT Auth)       └──────────────┬───────────────┘
+                                                     │
+                                      ┌──────────────┴───────────────┐
+                                      │  核心业务模块 (Apps)           │
+                                      ├──────────────────────────────┤
+                                      │ 🔐 Users (认证/数据隔离)      │
+                                      │ 📦 Goods (资产管理)           │
+                                      │ 📍 Location (物理收纳)        │
+                                      │ 🤖 BGM (第三方集成)           │
+                                      └──────────────┬───────────────┘
+                                                     │
+               ┌─────────────────────────────────────┴────────────────┐
+               ▼                                                      ▼
+    ┌────────────────────┐                                 ┌────────────────────┐
+    │   数据存储 (DB)     │                                 │   媒体文件 (Media)  │
+    ├────────────────────┤                                 ├────────────────────┤
+    │ SQLite/PostgreSQL  │                                 │  图片自动压缩存储   │
+    └────────────────────┘                                 └────────────────────┘
+```
+
+### 数据流说明
+1. **身份认证**：用户通过 `/api/users/login/` 获取 JWT，后续所有受限请求需携带 `Authorization: Bearer <token>`。
+2. **多用户隔离**：所有业务模型（Goods, StorageNode, etc.）均关联 `user` 字段，后端通过 `IsOwnerOnly` 权限类和 QuerySet 过滤实现物理层隔离。
+3. **第三方集成**：BGM 集成采用两步搜索流程，先搜索作品（Subject），再根据作品 ID 拉取角色（Character），最后选择性同步至本地。
 
 ---
 
@@ -37,6 +69,12 @@
 ---
 
 ## ✨ 核心特性
+
+### 🔐 完善的用户与认证系统
+- **JWT 认证**：基于 JWT (JSON Web Token) 的无状态认证机制，支持 Token 颁发与自动校验
+- **多用户隔离**：严格的数据所有权校验，确保用户只能访问和操作自己的谷子资产及收纳空间
+- **角色权限控制**：内置角色与权限模型，支持精细化的功能访问控制
+- **安全防护**：密码哈希存储、敏感接口限流（Throttle）及跨域安全配置
 
 ### 🎯 多维检索系统
 - **多维度过滤**：支持按 IP、角色（支持多选）、品类、状态、物理位置等维度组合筛选
@@ -92,6 +130,7 @@
 
 - [项目简介](#-项目简介)
 - [核心特性](#-核心特性)
+- [项目架构](#-项目架构)
 - [功能概览](#-功能概览)
 - [技术栈](#️-技术栈)
 - [代码结构](#-代码结构)
@@ -106,6 +145,20 @@
 ---
 
 ## 📋 功能概览
+
+### 用户与权限管理（`apps.users`）
+
+#### 数据模型
+- **`User`**：自定义用户模型，支持邮箱/用户名登录，关联角色
+- **`Role`**：角色模型，定义用户等级和基础权限
+- **`Permission`**：权限模型，支持对特定功能模块的精细化控制
+
+#### API 接口
+- **认证中心**
+  - `POST /api/auth/register/`：用户注册
+  - `POST /api/auth/login/`：用户登录，获取 JWT Token
+  - `GET /api/auth/me/`：获取当前登录用户信息
+  - `POST /api/auth/logout/`：退出登录（客户端清除 Token）
 
 ### 谷子资产管理（`apps.goods`）
 
@@ -151,8 +204,9 @@
   - `ThemeViewSet`：主题 CRUD，支持按主题聚合查看相关谷子
   - `ShowcaseViewSet`：展柜 CRUD，支持为展柜关联多件谷子以及排序
 - **BGM API 集成**
-  - `POST /api/bgm/search-characters/`：搜索 IP 作品并获取角色列表（调用 BGM API）
-  - `POST /api/bgm/create-characters/`：批量创建 IP 和角色到本地数据库
+  - `POST /api/bgm/search-subjects/`：搜索 IP 作品列表（第一步：确定作品）
+  - `POST /api/bgm/get-characters-by-subject-id/`：获取指定作品下的角色列表（第二步：选择角色）
+  - `POST /api/bgm/create-characters/`：将选择的角色及关联 IP 批量同步到本地数据库
 
 ### 物理收纳空间管理（`apps.location`）
 
@@ -198,6 +252,11 @@ ShiGu/
 │   └── wsgi.py / asgi.py    # WSGI/ASGI 入口
 │
 ├── apps/
+│   ├── users/               # 用户、角色与认证模块
+│   │   ├── models.py        # User / Role / Permission
+│   │   ├── serializers.py   # 注册、登录、个人信息序列化
+│   │   └── views.py         # 认证相关视图函数
+│   │
 │   ├── goods/               # 谷子核心域模型及 API
 │   │   ├── models.py        # IP / IPKeyword / Character / Category / Theme / Goods / GuziImage / Showcase / ShowcaseGoods
 │   │   ├── serializers/     # 序列化器模块（按功能拆分）
@@ -301,6 +360,10 @@ SECRET_KEY=your-secret-key-here
 DEBUG=False
 ALLOWED_HOSTS=your-domain.com
 DATABASE_URL=postgresql://user:password@localhost:5432/shiGu_db
+
+# JWT 配置
+JWT_SECRET=your-jwt-secret-key
+JWT_ACCESS_TTL_SECONDS=604800
 ```
 
 #### 5. 数据库迁移
@@ -374,12 +437,15 @@ python manage.py rebalance_goods_order --step 2000 --batch-size 1000
 
 - **Base URL**: `http://your-domain.com/api/`
 - **Content-Type**: `application/json`
-- **认证方式**: 当前版本暂不强制认证（生产环境建议添加）
+- **认证方式**: JWT 认证
+  - 需在 Header 中携带: `Authorization: Bearer <your_token>`
+  - 获取 Token: `POST /api/auth/login/`
 
 ### 接口概览
 
 | 模块 | 端点 | 说明 |
 |------|------|------|
+| **认证中心** | `/api/auth/` | 注册、登录、个人信息、退出 |
 | **基础数据** | `/api/ips/` | IP 作品 CRUD |
 | | `/api/characters/` | 角色 CRUD |
 | | `/api/categories/` | 品类 CRUD |
@@ -395,8 +461,15 @@ python manage.py rebalance_goods_order --step 2000 --batch-size 1000
 | **位置管理** | `/api/location/nodes/` | 收纳节点 CRUD |
 | | `/api/location/tree/` | 位置树结构 |
 | | `/api/location/nodes/{id}/goods/` | 节点下商品查询 |
-| **BGM 集成** | `/api/bgm/search-characters/` | 搜索 IP 并获取角色 |
-| | `/api/bgm/create-characters/` | 批量创建 IP 和角色 |
+| **BGM 集成** | `/api/bgm/search-subjects/` | 搜索作品列表 |
+| | `/api/bgm/get-characters-by-subject-id/` | 获取作品角色 |
+| | `/api/bgm/create-characters/` | 批量同步到本地 |
+
+### 认证中心
+- `POST /api/auth/register/`：用户注册（请求体：`{"username": "xxx", "password": "xxx"}`）
+- `POST /api/auth/login/`：用户登录（请求体：`{"username": "xxx", "password": "xxx"}`，返回 `access_token`）
+- `GET /api/auth/me/`：获取当前登录用户信息
+- `POST /api/auth/logout/`：退出登录
 
 ### 基础数据 CRUD
 
@@ -465,19 +538,13 @@ python manage.py rebalance_goods_order --step 2000 --batch-size 1000
 - `GET /api/location/nodes/{id}/goods/`：查看指定节点下的谷子
   - `?include_children=true`：包含所有子节点谷子
 
-### BGM API 集成
-
-#### 搜索 IP 作品并获取角色列表
-- `POST /api/bgm/search-characters/`：搜索 IP 作品并获取角色列表（调用 BGM API，不写入数据库）
-  - 请求体：`{"ip_name": "崩坏：星穹铁道"}`
-  - 返回：IP 显示名称和角色列表（包含角色名、关系、头像 URL）
-
-#### 批量创建 IP 和角色
-- `POST /api/bgm/create-characters/`：根据角色列表批量创建 IP 和角色到本地数据库
-  - 请求体：`{"characters": [{"ip_name": "崩坏：星穹铁道", "character_name": "流萤"}, ...]}`
-  - 返回：创建统计和每个角色的处理结果（created / already_exists / error）
-
----
+### BGM 集成
+- `POST /api/bgm/search-subjects/`：搜索 IP 作品列表
+  - 请求体：`{"keyword": "星穹铁道", "subject_type": 4}`
+- `POST /api/bgm/get-characters-by-id/`：获取作品下的角色
+  - 请求体：`{"subject_id": 12345}`
+- `POST /api/bgm/create-characters/`：批量同步角色到本地
+  - 请求体：`{"ip_name": "xxx", "characters": [{"name": "xxx", "avatar": "xxx", "gender": "xxx"}, ...]}`
 
 ## 🚢 部署指南
 
@@ -646,6 +713,11 @@ CMD ["gunicorn", "ShiGu.wsgi:application", "--bind", "0.0.0.0:8000"]
 - **去重规则**：`GoodsViewSet.perform_create` 基于「IP+角色集合（顺序无关）+名称+入手日期+单价」做幂等写入
 - **智能匹配**：角色集合通过排序后比较，确保顺序无关的去重判断
 
+### 多用户隔离与权限
+- **数据所有权**：所有核心模型（`Goods`、`Theme`、`Showcase`、`StorageNode`）均通过 `user` 字段与用户关联。
+- **物理隔离**：系统通过 `IsOwnerOnly` 权限类拦截未授权访问，并在 `get_queryset` 中自动应用 `filter(user=request.user)`，确保用户数据的物理隔离。
+- **公共元数据**：`IP`、`Character`、`Category` 属于公共元数据，默认所有人可查，但只有管理员（`role="admin"`）可进行增删改操作。
+
 ### 搜索体验
 - **多字段搜索**：`Goods` 支持对名称、IP 名称及 IP 关键词（`IPKeyword`）的轻量搜索
 - **关键词管理**：IP 关键词在序列化器中支持字符串数组读写，创建/更新时自动同步
@@ -741,9 +813,6 @@ CMD ["gunicorn", "ShiGu.wsgi:application", "--bind", "0.0.0.0:8000"]
 
 ## 📝 TODO / 未来规划
 
-- [ ] **用户与权限体系**
-  - 支持多用户、多角色、多设备登录与访问控制
-  - JWT Token 认证
 - [ ] **统计与可视化**
   - 资产价值统计、购入时间分布
   - IP / 角色 / 品类占比等统计图表
@@ -752,7 +821,7 @@ CMD ["gunicorn", "ShiGu.wsgi:application", "--bind", "0.0.0.0:8000"]
   - 数据加密备份、多设备同步
   - 支持导出 / 导入功能
 - [ ] **AI 识别谷子**
-  - 支持 AI 识别谷子的角色、IP 和谷子类型（吧唧、立牌、色纸、小卡等）
+  - 支持 AI 识别谷子的角色、IP 和谷子类型
   - 自动标签生成
 - [ ] **高级搜索**
   - 全文搜索引擎集成（Elasticsearch/Meilisearch）
