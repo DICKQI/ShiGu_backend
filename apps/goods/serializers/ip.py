@@ -43,6 +43,50 @@ class IPDetailSerializer(serializers.ModelSerializer):
         model = IP
         fields = ("id", "name", "subject_type", "order", "keywords")
 
+    def create(self, validated_data):
+        """创建IP时同时创建关键词"""
+        keywords_data = validated_data.pop("keywords", [])
+        ip = IP.objects.create(**validated_data)
+
+        # 创建关键词
+        if keywords_data:
+            for keyword_value in keywords_data:
+                if keyword_value and keyword_value.strip():  # 忽略空字符串
+                    IPKeyword.objects.get_or_create(ip=ip, value=keyword_value.strip())
+
+        return ip
+
+    def update(self, instance, validated_data):
+        """更新IP时同步更新关键词"""
+        keywords_data = validated_data.pop("keywords", None)
+
+        # 更新IP基本信息
+        instance.name = validated_data.get("name", instance.name)
+        # 更新 subject_type（如果提供了）
+        if "subject_type" in validated_data:
+            instance.subject_type = validated_data.get("subject_type")
+        if "order" in validated_data:
+            instance.order = validated_data.get("order", instance.order)
+        instance.save()
+
+        # 如果提供了keywords字段，则更新关键词
+        if keywords_data is not None:
+            # 获取当前关键词值集合
+            existing_keywords = set(instance.keywords.values_list("value", flat=True))
+            new_keywords = {kw.strip() for kw in keywords_data if kw and kw.strip()}
+
+            # 删除不再存在的关键词
+            to_delete = existing_keywords - new_keywords
+            if to_delete:
+                instance.keywords.filter(value__in=to_delete).delete()
+
+            # 添加新关键词
+            to_add = new_keywords - existing_keywords
+            for keyword_value in to_add:
+                IPKeyword.objects.get_or_create(ip=instance, value=keyword_value)
+
+        return instance
+
 
 class IPOrderItemSerializer(serializers.Serializer):
     """IP作品排序项序列化器（用于批量更新排序）"""
@@ -70,45 +114,3 @@ class IPBatchUpdateOrderSerializer(serializers.Serializer):
             raise serializers.ValidationError("items列表中不能有重复的IP作品ID")
 
         return value
-
-    def create(self, validated_data):
-        """创建IP时同时创建关键词"""
-        keywords_data = validated_data.pop("keywords", [])
-        ip = IP.objects.create(**validated_data)
-
-        # 创建关键词
-        if keywords_data:
-            for keyword_value in keywords_data:
-                if keyword_value and keyword_value.strip():  # 忽略空字符串
-                    IPKeyword.objects.get_or_create(ip=ip, value=keyword_value.strip())
-
-        return ip
-
-    def update(self, instance, validated_data):
-        """更新IP时同步更新关键词"""
-        keywords_data = validated_data.pop("keywords", None)
-
-        # 更新IP基本信息
-        instance.name = validated_data.get("name", instance.name)
-        # 更新 subject_type（如果提供了）
-        if "subject_type" in validated_data:
-            instance.subject_type = validated_data.get("subject_type")
-        instance.save()
-
-        # 如果提供了keywords字段，则更新关键词
-        if keywords_data is not None:
-            # 获取当前关键词值集合
-            existing_keywords = set(instance.keywords.values_list("value", flat=True))
-            new_keywords = {kw.strip() for kw in keywords_data if kw and kw.strip()}
-
-            # 删除不再存在的关键词
-            to_delete = existing_keywords - new_keywords
-            if to_delete:
-                instance.keywords.filter(value__in=to_delete).delete()
-
-            # 添加新关键词
-            to_add = new_keywords - existing_keywords
-            for keyword_value in to_add:
-                IPKeyword.objects.get_or_create(ip=instance, value=keyword_value)
-
-        return instance
