@@ -285,13 +285,21 @@ class GoodsViewSet(viewsets.ModelViewSet):
         responses={
             201: GoodsDetailSerializer,
             409: OpenApiResponse(
-                description="检测到可能重复的谷子，body 含 code=goods_duplicate 与 candidates 列表",
+                description="检测到可能重复的谷子，body 含 code=goods_duplicate 与 candidates 列表（含 main_photo_url 主图链接）",
                 response={
                     "type": "object",
                     "properties": {
                         "detail": {"type": "string"},
                         "code": {"type": "string", "example": "goods_duplicate"},
-                        "candidates": {"type": "array", "items": {"type": "object"}},
+                        "candidates": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "main_photo_url": {"type": "string", "description": "重复谷子的主图链接（绝对 URL）"},
+                                },
+                            },
+                        },
                     },
                 },
             ),

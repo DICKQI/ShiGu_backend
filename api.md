@@ -990,11 +990,21 @@ GET /api/location/nodes/2/goods/?include_children=true
     "detail": "检测到可能重复的谷子，请选择合并或新建",
     "code": "goods_duplicate",
     "candidates": [
-      { "id": "uuid", "name": "...", "quantity": 2, "ip": {...}, "characters": [...], "purchase_date": "...", "price": "...", "created_at": "..." }
+      {
+        "id": "uuid",
+        "name": "...",
+        "quantity": 2,
+        "ip": {...},
+        "characters": [...],
+        "purchase_date": "...",
+        "price": "...",
+        "created_at": "...",
+        "main_photo_url": "https://example.com/media/goods/main/xxx.jpg"
+      }
     ]
   }
   ```
-  前端收到后可用 `candidates` 展示列表，用户选择「合并」则带 `merge_strategy: "merge"` 与 `merge_target_id` 重发请求；选择「新建」则带 `merge_strategy: "new"` 重发。
+  `candidates` 中每项包含 `main_photo_url`（重复谷子的主图绝对 URL，无主图时为 `null`），便于前端展示缩略图。前端收到后可用 `candidates` 展示列表，用户选择「合并」则带 `merge_strategy: "merge"` 与 `merge_target_id` 重发请求；选择「新建」则带 `merge_strategy: "new"` 重发。
 
 **输入时提示**：在名称/IP 输入时可调用 `GET /api/goods/?search=xxx` 展示已有类似谷子，减少误建重复。
 

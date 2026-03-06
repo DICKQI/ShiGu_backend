@@ -43,6 +43,7 @@ class GoodsDuplicateCandidateSerializer(serializers.ModelSerializer):
     """
     ip = IPSimpleSerializer(read_only=True)
     characters = CharacterSimpleSerializer(many=True, read_only=True)
+    main_photo_url = serializers.SerializerMethodField(help_text="重复谷子的主图链接（绝对 URL）")
 
     class Meta:
         model = Goods
@@ -55,7 +56,21 @@ class GoodsDuplicateCandidateSerializer(serializers.ModelSerializer):
             "purchase_date",
             "price",
             "created_at",
+            "main_photo_url",
         )
+
+    def get_main_photo_url(self, obj):
+        main_photo = getattr(obj, "main_photo", None)
+        if not main_photo or not main_photo.name:
+            return None
+        try:
+            url = main_photo.url
+        except Exception:
+            return None
+        request = self.context.get("request")
+        if request and url:
+            return request.build_absolute_uri(url)
+        return url
 
 
 class GoodsListSerializer(serializers.ModelSerializer):
