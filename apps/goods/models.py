@@ -504,10 +504,10 @@ class ShowcaseGoods(models.Model):
     )
     goods = models.ForeignKey(
         Goods,
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
         related_name="showcases",
         verbose_name="关联谷子",
-        help_text="防止误删谷子",
+        help_text="删除谷子时自动从展柜中移除",
     )
     order = models.BigIntegerField(
         default=0,
