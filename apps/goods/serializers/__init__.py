@@ -24,6 +24,7 @@ from .theme import (
 )
 from .goods import (
     GoodsDetailSerializer,
+    GoodsDuplicateCandidateSerializer,
     GoodsListSerializer,
     GoodsMoveSerializer,
     GuziImageSerializer,
@@ -74,6 +75,7 @@ __all__ = [
     "GuziImageSerializer",
     "GoodsListSerializer",
     "GoodsDetailSerializer",
+    "GoodsDuplicateCandidateSerializer",
     "GoodsMoveSerializer",
     # Showcase
     "ShowcaseListSerializer",

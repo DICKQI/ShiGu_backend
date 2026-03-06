@@ -945,7 +945,7 @@ GET /api/location/nodes/2/goods/?include_children=true
 
 ### 4.3 新建 / 编辑谷子（主数据 JSON，主图单独上传）
 
-> 说明：目前后端对幂等性做了**简易保护**，防止重复录入完全相同的谷子。主数据与主图分开：先提交 JSON 创建谷子，再单独上传主图。
+> 说明：新建谷子时后端会按「用户 + IP + 角色集合 + 名称 + 入手日期 + 单价」检测可能重复。默认（`merge_strategy=auto`）若检测到候选则返回 **409** 及候选列表，由前端弹窗让用户选择「合并」或「新建」。主数据与主图分开：先提交 JSON 创建谷子，再单独上传主图。
 
 - **URL**：`POST /api/goods/`（仅主数据，JSON）
 - **URL**：`PUT /api/goods/{id}/`（主数据更新，JSON）
@@ -961,6 +961,7 @@ GET /api/location/nodes/2/goods/?include_children=true
   "category_id": 1,
   "theme_id": 1,
   "location": 3,
+  "merge_strategy": "auto",
   "quantity": 1,
   "price": "89.00",
   "purchase_date": "2024-09-20",
@@ -973,12 +974,29 @@ GET /api/location/nodes/2/goods/?include_children=true
 说明：
 - `character_ids`：角色ID数组，可包含多个角色，例如 `[5, 6]` 表示同时关联流萤（ID: 5）和花火（ID: 6）。
 - `theme_id`：主题ID（可选），例如 `1` 表示"夏日主题"。不传或传 `null` 表示不关联主题。
+- **`merge_strategy`**（可选，默认 `"auto"`）：
+  - `auto`：检测到可能重复时返回 **409 Conflict**，body 含 `code: "goods_duplicate"` 与 `candidates` 列表；前端可弹窗让用户选择「合并到该条」或「仍然新建」。
+  - `new`：不检测重复，始终新建一条，返回 201。
+  - `merge`：若存在唯一候选则合并（仅将请求的 `quantity` 累加到该条）；若有多条候选则必须传 `merge_target_id` 指定要合并到的谷子 ID。
+- **`merge_target_id`**（可选）：当 `merge_strategy=merge` 且候选多于一条时必填，为要合并到的目标谷子 UUID。
 - 主图 `main_photo` 不在此接口上传；请使用下方 `upload-main-photo`。
-- 后端会根据以下组合判断是否重复（幂等）：
-  - `ip + 相同角色集合（顺序无关） + name + purchase_date + price`
-  - 若已存在同组合的记录，则不会新建，而是返回已有实例。
 
-**响应**：返回创建后的完整详情（同 4.2）。
+**响应**：
+- **201 Created**：新建成功，返回完整详情（同 4.2）。
+- **200 OK**：合并成功（仅当 `merge_strategy=merge` 且命中候选时），body 含 `merged: true` 及合并后的谷子详情。
+- **409 Conflict**：检测到可能重复且 `merge_strategy=auto`，body 示例：
+  ```json
+  {
+    "detail": "检测到可能重复的谷子，请选择合并或新建",
+    "code": "goods_duplicate",
+    "candidates": [
+      { "id": "uuid", "name": "...", "quantity": 2, "ip": {...}, "characters": [...], "purchase_date": "...", "price": "...", "created_at": "..." }
+    ]
+  }
+  ```
+  前端收到后可用 `candidates` 展示列表，用户选择「合并」则带 `merge_strategy: "merge"` 与 `merge_target_id` 重发请求；选择「新建」则带 `merge_strategy: "new"` 重发。
+
+**输入时提示**：在名称/IP 输入时可调用 `GET /api/goods/?search=xxx` 展示已有类似谷子，减少误建重复。
 
 #### 4.3.1 主图上传 / 更新接口
 

@@ -5,6 +5,7 @@ from django.db import transaction
 from django.db.models import Count, DateField, DecimalField, ExpressionWrapper, F, Min, Q, Sum, Value
 from django.db.models.functions import Cast, Coalesce, TruncDate, TruncMonth, TruncWeek
 from django.db import connection
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 from django_filters import (
     BaseInFilter,
     BooleanFilter,
@@ -28,6 +29,7 @@ from ..models import Category, Character, Goods, GuziImage
 from apps.location.models import StorageNode
 from ..serializers import (
     GoodsDetailSerializer,
+    GoodsDuplicateCandidateSerializer,
     GoodsListSerializer,
     GoodsMoveSerializer,
 )
@@ -243,23 +245,16 @@ class GoodsViewSet(viewsets.ModelViewSet):
             return qs
         return qs.filter(user=user)
 
-    def perform_create(self, serializer):
+    def _find_duplicate_candidates(self, user, validated_data):
         """
-        简单幂等性：避免重复录入完全相同的谷子。
-
-        规则示例（可按业务后续调整）：
-        - 同一 IP + 相同角色集合（顺序无关） + 名称 + 入手日期 + 单价 认为是同一条资产。
+        根据「用户 + IP + 名称 + 角色集合 + 入手日期 + 单价」查找可能重复的谷子，返回候选列表。
         """
+        ip = validated_data.get("ip")
+        characters = validated_data.get("characters", [])
+        name = validated_data.get("name")
+        purchase_date = validated_data.get("purchase_date")
+        price = validated_data.get("price")
 
-        validated = serializer.validated_data
-        ip = validated.get("ip")
-        characters = validated.get("characters", [])
-        name = validated.get("name")
-        purchase_date = validated.get("purchase_date")
-        price = validated.get("price")
-        user = self.request.user
-
-        # 构建查询条件
         query = Goods.objects.filter(
             user=user,
             ip=ip,
@@ -268,32 +263,108 @@ class GoodsViewSet(viewsets.ModelViewSet):
             price=price,
         )
 
-        # 如果有角色数据，检查角色集合是否相同
         if characters:
-            # 将角色ID列表排序后转为元组，用于比较
             character_ids = sorted([c.id for c in characters])
-            # 过滤出角色数量相同的谷子
             query = query.annotate(character_count=Count("characters")).filter(
                 character_count=len(character_ids)
             )
-
-            # 遍历查询结果，检查角色集合是否完全相同
+            candidates = []
             for candidate in query.prefetch_related("characters"):
                 candidate_ids = sorted([c.id for c in candidate.characters.all()])
                 if candidate_ids == character_ids:
-                    # 找到了完全匹配的实例
-                    serializer.instance = candidate
-                    return
-        else:
-            # 没有角色数据时，检查是否有完全相同的记录（不含角色）
-            if query.exists():
-                # 如果存在完全相同的记录（包括角色也为空），返回该实例
-                candidate = query.first()
-                if candidate.characters.count() == 0:
-                    serializer.instance = candidate
-                    return
+                    candidates.append(candidate)
+            return candidates
 
-        # 为新建的谷子分配稀疏的 order：当前最小值 - ORDER_STEP，让新建的谷子排在最前面
+        if query.exists():
+            first = query.first()
+            if first.characters.count() == 0:
+                return [first]
+        return []
+
+    @extend_schema(
+        responses={
+            201: GoodsDetailSerializer,
+            409: OpenApiResponse(
+                description="检测到可能重复的谷子，body 含 code=goods_duplicate 与 candidates 列表",
+                response={
+                    "type": "object",
+                    "properties": {
+                        "detail": {"type": "string"},
+                        "code": {"type": "string", "example": "goods_duplicate"},
+                        "candidates": {"type": "array", "items": {"type": "object"}},
+                    },
+                },
+            ),
+        },
+        request=GoodsDetailSerializer,
+    )
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
+        merge_strategy = validated.get("merge_strategy", "auto")
+        merge_target_id = validated.get("merge_target_id")
+        user = request.user
+
+        if merge_strategy == "new":
+            self.perform_create(serializer)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        candidates = self._find_duplicate_candidates(user, validated)
+
+        if merge_strategy == "auto" and candidates:
+            candidate_serializer = GoodsDuplicateCandidateSerializer(
+                candidates, many=True, context=self.get_serializer_context()
+            )
+            return Response(
+                {
+                    "detail": "检测到可能重复的谷子，请选择合并或新建",
+                    "code": "goods_duplicate",
+                    "candidates": candidate_serializer.data,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        if merge_strategy == "merge":
+            if not candidates:
+                self.perform_create(serializer)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            if len(candidates) == 1:
+                target = candidates[0]
+            else:
+                if not merge_target_id:
+                    return Response(
+                        {
+                            "detail": "存在多条可能重复的谷子，请指定 merge_target_id 选择要合并到的记录",
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                target = next((c for c in candidates if str(c.id) == str(merge_target_id)), None)
+                if not target:
+                    return Response(
+                        {"detail": "merge_target_id 不在候选列表中或不存在"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            add_qty = validated.get("quantity", 1)
+            target.quantity += add_qty
+            target.save(update_fields=["quantity", "updated_at"])
+            detail_serializer = GoodsDetailSerializer(
+                target, context=self.get_serializer_context()
+            )
+            return Response(
+                {"merged": True, **detail_serializer.data},
+                status=status.HTTP_200_OK,
+            )
+
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def perform_create(self, serializer):
+        """
+        仅负责新建时的 order 分配与保存，去重与合并逻辑已移至 create()。
+        """
+        user = self.request.user
         min_order = (
             Goods.objects.filter(user=user)
             .aggregate(min_order=Min("order"))

@@ -37,6 +37,27 @@ class GuziImageSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 
+class GoodsDuplicateCandidateSerializer(serializers.ModelSerializer):
+    """
+    用于 409 冲突响应中的候选谷子列表，仅包含展示与选择所需字段。
+    """
+    ip = IPSimpleSerializer(read_only=True)
+    characters = CharacterSimpleSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Goods
+        fields = (
+            "id",
+            "name",
+            "quantity",
+            "ip",
+            "characters",
+            "purchase_date",
+            "price",
+            "created_at",
+        )
+
+
 class GoodsListSerializer(serializers.ModelSerializer):
     """
     列表用"瘦身"序列化器，仅返回检索页所需字段。
@@ -116,6 +137,19 @@ class GoodsDetailSerializer(serializers.ModelSerializer):
         allow_null=True,
         help_text="位置节点ID（可选）",
     )
+    merge_strategy = serializers.ChoiceField(
+        choices=["auto", "new", "merge"],
+        default="auto",
+        write_only=True,
+        required=False,
+        help_text="auto：检测到重复则返回409+候选；new：不检测重复始终新建；merge：合并到已有（多候选时需传 merge_target_id）",
+    )
+    merge_target_id = serializers.UUIDField(
+        write_only=True,
+        required=False,
+        allow_null=True,
+        help_text="merge_strategy=merge 且候选多于一条时必填，指定要合并到的目标谷子ID",
+    )
     location_path = serializers.SerializerMethodField()
     additional_photos = GuziImageSerializer(many=True, read_only=True)
 
@@ -134,6 +168,8 @@ class GoodsDetailSerializer(serializers.ModelSerializer):
             "theme",
             "location_path",
             "location",
+            "merge_strategy",
+            "merge_target_id",
             "main_photo",
             "quantity",
             "price",
@@ -191,6 +227,9 @@ class GoodsDetailSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """创建谷子时自动压缩主图并处理多对多关系"""
+        # 移除仅用于视图控制的字段，不写入模型
+        validated_data.pop("merge_strategy", None)
+        validated_data.pop("merge_target_id", None)
         # 提取多对多关系数据
         characters = validated_data.pop("characters", [])
         
