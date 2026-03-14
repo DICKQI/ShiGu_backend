@@ -254,6 +254,7 @@ class GoodsViewSet(viewsets.ModelViewSet):
         """
         重写list方法以支持group_by参数进行分组显示。
         支持按 ip（IP作品）、character（角色）、category（品类）、theme（主题）分组。
+        分组后的结果支持分页。
         """
         group_by = request.query_params.get('group_by', None)
 
@@ -335,15 +336,24 @@ class GoodsViewSet(viewsets.ModelViewSet):
                     serializer = self.get_serializer(goods)
                     grouped_data[key]['items'].append(serializer.data)
 
-        # 转换为列表格式
-        result = list(grouped_data.values())
+        # 转换为列表格式并排序（按group_id排序保证顺序稳定）
+        groups_list = sorted(grouped_data.values(), key=lambda x: x['group_id'])
 
-        # 返回分组后的数据
+        # 对分组列表进行分页
+        paginator = self.pagination_class()
+        paginated_groups = paginator.paginate_queryset(groups_list, request, view=self)
+
+        # 返回分页后的分组数据
         return Response({
+            'count': len(groups_list),
+            'page': paginator.page.number,
+            'page_size': paginator.page_size,
+            'next': paginator.get_next_page_number(),
+            'previous': paginator.get_previous_page_number(),
             'group_by': group_by,
-            'groups': result,
-            'total_groups': len(result),
-            'total_items': queryset.count()
+            'total_groups': len(groups_list),
+            'total_items': queryset.count(),
+            'groups': paginated_groups
         })
 
     def _find_duplicate_candidates(self, user, validated_data):
