@@ -94,3 +94,4 @@ celerybeat.pid
 # 迁移文件（可选，如果不想提交迁移文件，取消下面的注释）
 # */migrations/*.py
 # !*/migrations/__init__.py
+.claude/

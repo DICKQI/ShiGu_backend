@@ -23,7 +23,11 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 
 import datetime
+import hashlib
+import random
 from decimal import Decimal
+
+from django.core.cache import cache
 
 from ..models import Category, Character, Goods, GuziImage
 from apps.location.models import StorageNode
@@ -34,6 +38,7 @@ from ..serializers import (
     GoodsMoveSerializer,
 )
 from ..utils import compress_image
+from ..similarity import GoodsSimilarityCalculator, SeedSelector, SimilarityGroupBuilder
 from core.permissions import IsOwnerOnly, is_admin
 
 
@@ -1024,3 +1029,138 @@ class GoodsViewSet(viewsets.ModelViewSet):
         }
 
         return Response(payload, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["get"], url_path="similar-random")
+    def similar_random(self, request):
+        """
+        相似谷子随机展示接口
+
+        返回按相似度分组的谷子列表，而非完全随机。
+        通过多维度加权评分算法将相似的谷子整理在一起，提供更好的浏览体验。
+
+        查询参数：
+        - 所有标准过滤器（ip, category, theme, status等）
+        - seed_strategy: 种子选择策略（diverse/popular/recent，默认diverse）
+        - page, page_size: 标准分页参数
+
+        响应格式与列表接口相同。
+        """
+        # 1. 获取过滤后的queryset并优化查询
+        qs = self.filter_queryset(self.get_queryset())
+
+        # 边界情况：谷子太少，直接随机打乱
+        total_count = qs.count()
+        if total_count < 18:
+            goods_list = list(qs)
+            random.shuffle(goods_list)
+            page = self.paginate_queryset(goods_list)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+            serializer = self.get_serializer(goods_list, many=True)
+            return Response(serializer.data)
+
+        # 2. 检查缓存中的现有排序
+        cache_key = self._get_similarity_cache_key(request)
+        cached_ids = cache.get(cache_key)
+
+        if cached_ids:
+            # 使用缓存的排序
+            ordered_goods = self._order_by_ids(qs, cached_ids)
+        else:
+            # 计算新的相似度排序
+            ordered_goods = self._compute_similarity_ordering(qs, request)
+            # 缓存ID列表（5分钟TTL）
+            cache.set(cache_key, [str(g.id) for g in ordered_goods], timeout=300)
+
+        # 3. 分页并返回
+        page = self.paginate_queryset(ordered_goods)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(ordered_goods, many=True)
+        return Response(serializer.data)
+
+    def _get_similarity_cache_key(self, request):
+        """
+        生成缓存键（用户ID + 过滤器哈希）
+
+        Args:
+            request: HTTP请求对象
+
+        Returns:
+            str: 缓存键
+        """
+        user_id = request.user.id
+        filter_params = {
+            'ip': request.query_params.get('ip'),
+            'category': request.query_params.get('category'),
+            'status': request.query_params.get('status'),
+            'theme': request.query_params.get('theme'),
+            'search': request.query_params.get('search'),
+            'seed_strategy': request.query_params.get('seed_strategy', 'diverse'),
+        }
+        # 移除None值
+        filter_params = {k: v for k, v in filter_params.items() if v}
+        filter_hash = hashlib.md5(str(sorted(filter_params.items())).encode()).hexdigest()
+        return f"similar_random:{user_id}:{filter_hash}"
+
+    def _compute_similarity_ordering(self, qs, request):
+        """
+        计算基于相似度的排序
+
+        Args:
+            qs: 查询集
+            request: HTTP请求对象
+
+        Returns:
+            list: 排序后的谷子列表
+        """
+        # 预加载所有关联数据
+        goods_list = list(
+            qs.select_related('ip', 'category', 'theme', 'location')
+              .prefetch_related('characters')
+        )
+
+        # 获取种子策略
+        seed_strategy = request.query_params.get('seed_strategy', 'diverse')
+
+        # 初始化组件
+        calculator = GoodsSimilarityCalculator()
+        selector = SeedSelector()
+        builder = SimilarityGroupBuilder(calculator)
+
+        # 选择种子
+        seeds = selector.select_seeds(goods_list, strategy=seed_strategy)
+
+        # 构建分组
+        ordered_goods = builder.build_groups(seeds, goods_list)
+
+        # 强制多样性
+        ordered_goods = builder.enforce_variety(ordered_goods)
+
+        return ordered_goods
+
+    def _order_by_ids(self, qs, id_list):
+        """
+        按ID列表排序查询集
+
+        Args:
+            qs: 查询集
+            id_list: ID列表
+
+        Returns:
+            list: 排序后的谷子列表
+        """
+        # 创建ID到位置的映射
+        id_to_position = {str(id_val): pos for pos, id_val in enumerate(id_list)}
+
+        # 获取谷子并按位置排序
+        goods_dict = {str(g.id): g for g in qs}
+        ordered_goods = []
+        for id_val in id_list:
+            if id_val in goods_dict:
+                ordered_goods.append(goods_dict[id_val])
+
+        return ordered_goods
