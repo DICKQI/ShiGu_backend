@@ -1146,11 +1146,11 @@ class GoodsViewSet(viewsets.ModelViewSet):
         # 随机打乱种子顺序，让不同的谷子有机会出现在前面
         random.shuffle(seeds)
 
-        # 构建分组
-        ordered_goods = builder.build_groups(seeds, goods_list)
+        # 构建分组（返回分组列表）
+        groups = builder.build_groups(seeds, goods_list)
 
-        # 强制多样性
-        ordered_goods = builder.enforce_variety(ordered_goods)
+        # 在组级别交错排列实现多样性
+        ordered_goods = builder.interleave_groups(groups)
 
         return ordered_goods
 

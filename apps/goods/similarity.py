@@ -440,9 +440,9 @@ class SimilarityGroupBuilder:
             min_similarity: 最小相似度阈值
 
         Returns:
-            list: 排序后的谷子列表
+            list[list[Goods]]: 分组列表，每个分组是一个谷子列表
         """
-        result = []
+        groups = []
         used_ids = set()
 
         for seed in seeds:
@@ -467,76 +467,59 @@ class SimilarityGroupBuilder:
                 group.append(good)
                 used_ids.add(good.id)
 
-            result.extend(group)
+            groups.append(group)
 
-        # 添加剩余未分组的谷子
+        # 添加剩余未分组的谷子作为单独的"组"
         remaining = [g for g in all_goods if g.id not in used_ids]
         random.shuffle(remaining)
-        result.extend(remaining)
+        for good in remaining:
+            groups.append([good])
 
-        return result
+        return groups
 
-    def enforce_variety(self, goods_list):
+    def interleave_groups(self, groups):
         """
-        强制执行多样性规则防止聚类
+        交错排列分组以实现多样性，同时保持组内聚集
 
-        规则：
-        - 不允许连续3个以上来自同一IP
-        - 不允许连续2个以上来自同一品类
+        策略：
+        1. 按IP对分组进行分类
+        2. 轮流从不同IP中取出分组
+        3. 同一IP的分组之间插入其他IP的分组
 
         Args:
-            goods_list: 谷子列表
+            groups: 分组列表 list[list[Goods]]
 
         Returns:
-            list: 调整后的谷子列表
+            list[Goods]: 扁平化的谷子列表
         """
-        if len(goods_list) <= 3:
-            return goods_list
+        if len(groups) <= 1:
+            return [g for group in groups for g in group]
 
+        # 按IP分类分组
+        ip_groups = defaultdict(list)
+        for group in groups:
+            if group:
+                # 使用组内第一个谷子的IP作为分组标识
+                ip_id = group[0].ip_id
+                ip_groups[ip_id].append(group)
+
+        # 轮流从不同IP中取出分组
         result = []
-        used_ids = set()
+        ip_ids = list(ip_groups.keys())
+        random.shuffle(ip_ids)  # 随机化IP顺序
 
-        for i, good in enumerate(goods_list):
-            # 跳过已经被使用的谷子
-            if good.id in used_ids:
-                continue
+        while ip_groups:
+            for ip_id in ip_ids[:]:
+                if ip_id not in ip_groups:
+                    continue
 
-            # 检查IP聚类（连续3个相同IP）
-            if len(result) >= 2:
-                last_2_ips = [result[-2].ip_id, result[-1].ip_id]
-                if all(ip == good.ip_id for ip in last_2_ips):
-                    # 查找不同IP的谷子插入
-                    different_good = self._find_different_good(
-                        goods_list[i:],
-                        'ip_id',
-                        good.ip_id,
-                        used_ids
-                    )
-                    if different_good:
-                        result.append(different_good)
-                        used_ids.add(different_good.id)
-                        # 跳过当前谷子，它会在后续循环中被处理
-                        continue
+                # 从当前IP取出一个分组
+                group = ip_groups[ip_id].pop(0)
+                result.extend(group)
 
-            result.append(good)
-            used_ids.add(good.id)
+                # 如果该IP没有更多分组，移除
+                if not ip_groups[ip_id]:
+                    del ip_groups[ip_id]
+                    ip_ids.remove(ip_id)
 
         return result
-
-    def _find_different_good(self, remaining_goods, attr, current_value, used_ids):
-        """
-        查找具有不同属性值的谷子
-
-        Args:
-            remaining_goods: 剩余谷子列表
-            attr: 属性名
-            current_value: 当前值
-            used_ids: 已使用的谷子ID集合
-
-        Returns:
-            Goods or None: 找到的谷子或None
-        """
-        for good in remaining_goods:
-            if good.id not in used_ids and getattr(good, attr) != current_value:
-                return good
-        return None
