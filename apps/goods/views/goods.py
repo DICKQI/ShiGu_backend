@@ -1042,24 +1042,28 @@ class GoodsViewSet(viewsets.ModelViewSet):
         - 所有标准过滤器（ip, category, theme, status等）
         - seed_strategy: 种子选择策略（diverse/popular/recent，默认diverse）
         - refresh: 设置为1时跳过缓存强制重新计算（可选）
-        - page, page_size: 标准分页参数
 
+        注意：此接口只返回第一页（18个谷子），以降低后端压力。
         响应格式与列表接口相同。
         """
         # 1. 获取过滤后的queryset并优化查询
         qs = self.filter_queryset(self.get_queryset())
 
-        # 边界情况：谷子太少，直接随机打乱
+        # 获取总数
         total_count = qs.count()
-        if total_count < 18:
-            goods_list = list(qs)
-            random.shuffle(goods_list)
-            page = self.paginate_queryset(goods_list)
-            if page is not None:
-                serializer = self.get_serializer(page, many=True)
-                return self.get_paginated_response(serializer.data)
-            serializer = self.get_serializer(goods_list, many=True)
-            return Response(serializer.data)
+
+        # 边界情况：谷子数量 ≤ 18，使用优化的小数据集推荐算法
+        if total_count <= 18:
+            ordered_goods = self._compute_small_dataset_ordering(qs)
+            serializer = self.get_serializer(ordered_goods, many=True)
+            return Response({
+                'count': len(ordered_goods),
+                'page': 1,
+                'page_size': 18,
+                'next': None,
+                'previous': None,
+                'results': serializer.data
+            })
 
         # 2. 检查是否需要跳过缓存
         refresh = request.query_params.get('refresh') == '1'
@@ -1069,22 +1073,26 @@ class GoodsViewSet(viewsets.ModelViewSet):
         cached_ids = None if refresh else cache.get(cache_key)
 
         if cached_ids:
-            # 使用缓存的排序
-            ordered_goods = self._order_by_ids(qs, cached_ids)
+            # 使用缓存的排序，只取前18个
+            ordered_goods = self._order_by_ids(qs, cached_ids[:18])
         else:
             # 计算新的相似度排序
             ordered_goods = self._compute_similarity_ordering(qs, request)
-            # 缓存ID列表（5分钟TTL）
+            # 缓存完整的ID列表（5分钟TTL）
             cache.set(cache_key, [str(g.id) for g in ordered_goods], timeout=300)
+            # 只返回前18个
+            ordered_goods = ordered_goods[:18]
 
-        # 4. 分页并返回
-        page = self.paginate_queryset(ordered_goods)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
+        # 4. 返回第一页数据（固定18个）
         serializer = self.get_serializer(ordered_goods, many=True)
-        return Response(serializer.data)
+        return Response({
+            'count': total_count,
+            'page': 1,
+            'page_size': 18,
+            'next': 2 if total_count > 18 else None,
+            'previous': None,
+            'results': serializer.data
+        })
 
     def _get_similarity_cache_key(self, request):
         """
@@ -1153,6 +1161,92 @@ class GoodsViewSet(viewsets.ModelViewSet):
         ordered_goods = builder.interleave_groups(groups)
 
         return ordered_goods
+
+    def _compute_small_dataset_ordering(self, qs):
+        """
+        为小数据集（≤18个谷子）计算优化的排序
+
+        策略：
+        1. 按主题分组（相同主题的谷子聚集）
+        2. 在主题内按IP分组
+        3. 主题之间随机交错
+        4. 如果没有主题，则按IP分组并随机交错
+
+        Args:
+            qs: 查询集
+
+        Returns:
+            list: 排序后的谷子列表
+        """
+        from collections import defaultdict
+
+        # 预加载所有关联数据
+        goods_list = list(
+            qs.select_related('ip', 'category', 'theme', 'location')
+              .prefetch_related('characters')
+        )
+
+        if not goods_list:
+            return []
+
+        # 按主题和IP分组
+        theme_ip_groups = defaultdict(lambda: defaultdict(list))
+        no_theme_ip_groups = defaultdict(list)
+
+        for good in goods_list:
+            if good.theme_id:
+                theme_ip_groups[good.theme_id][good.ip_id].append(good)
+            else:
+                no_theme_ip_groups[good.ip_id].append(good)
+
+        result = []
+
+        # 处理有主题的谷子
+        if theme_ip_groups:
+            theme_ids = list(theme_ip_groups.keys())
+            random.shuffle(theme_ids)  # 随机化主题顺序
+
+            for theme_id in theme_ids:
+                ip_groups = theme_ip_groups[theme_id]
+                ip_ids = list(ip_groups.keys())
+                random.shuffle(ip_ids)  # 随机化IP顺序
+
+                # 在主题内交错不同IP的谷子
+                while ip_groups:
+                    for ip_id in ip_ids[:]:
+                        if ip_id not in ip_groups:
+                            continue
+
+                        # 从当前IP取出一个谷子
+                        good = ip_groups[ip_id].pop(0)
+                        result.append(good)
+
+                        # 如果该IP没有更多谷子，移除
+                        if not ip_groups[ip_id]:
+                            del ip_groups[ip_id]
+                            ip_ids.remove(ip_id)
+
+        # 处理没有主题的谷子
+        if no_theme_ip_groups:
+            ip_ids = list(no_theme_ip_groups.keys())
+            random.shuffle(ip_ids)  # 随机化IP顺序
+
+            # 交错不同IP的谷子
+            while no_theme_ip_groups:
+                for ip_id in ip_ids[:]:
+                    if ip_id not in no_theme_ip_groups:
+                        continue
+
+                    # 从当前IP取出一个谷子
+                    good = no_theme_ip_groups[ip_id].pop(0)
+                    result.append(good)
+
+                    # 如果该IP没有更多谷子，移除
+                    if not no_theme_ip_groups[ip_id]:
+                        del no_theme_ip_groups[ip_id]
+                        ip_ids.remove(ip_id)
+
+        return result
 
     def _order_by_ids(self, qs, id_list):
         """
