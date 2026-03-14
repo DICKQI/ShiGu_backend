@@ -709,8 +709,9 @@ GET /api/location/nodes/2/goods/?include_children=true
 | `is_official` | bool   | 是否官谷筛选：`true`=只看官谷，`false`=只看非官谷。不传则不过滤                               |
 | `location`    | int    | 位置节点 ID，过滤收纳在某一具体节点下的谷子                                                 |
 | `search`      | string | 轻量模糊搜索：会同时在 `Goods.name`、`IP.name`、`IPKeyword.value` 上匹配    |
-| `page`        | int    | 分页页码，从 1 开始，例如 `?page=1` 表示第一页                                               |
-| `page_size`   | int    | 每页数量，默认 18 条，最大 100 条，例如 `?page_size=50`                                      |
+| `group_by`    | string | **分组显示**：按指定字段分组显示谷子列表。可选值：`ip`（IP作品）、`character`（角色）、`category`（品类）、`theme`（主题）。使用此参数时返回分组格式，不使用时返回普通列表格式 |
+| `page`        | int    | 分页页码，从 1 开始，例如 `?page=1` 表示第一页（**注意**：使用 `group_by` 参数时不支持分页）                                               |
+| `page_size`   | int    | 每页数量，默认 18 条，最大 100 条，例如 `?page_size=50`（**注意**：使用 `group_by` 参数时不支持分页）                                      |
 
 > 示例 1：检索"星铁 + 流萤 + 吧唧（包含所有子品类），当前在馆"的所有谷子：
 >
@@ -737,6 +738,18 @@ GET /api/location/nodes/2/goods/?include_children=true
 > 示例 6：检索指定主题的谷子：
 >
 > `/api/goods/?theme=1`（筛选主题ID为1的所有谷子）
+>
+> 示例 7：按 IP 作品分组显示谷子：
+>
+> `/api/goods/?group_by=ip`（按 IP 作品分组显示所有谷子）
+>
+> 示例 8：按角色分组显示星铁的谷子：
+>
+> `/api/goods/?ip=1&group_by=character`（筛选星铁的谷子，并按角色分组显示）
+>
+> 示例 9：按品类分组显示流萤的谷子：
+>
+> `/api/goods/?character=5&group_by=category`（筛选流萤的谷子，并按品类分组显示）
 
 #### 响应示例（分页）
 
@@ -846,6 +859,164 @@ GET /api/location/nodes/2/goods/?include_children=true
 - 获取第二页：`GET /api/goods/?page=2`
 - 自定义每页数量：`GET /api/goods/?page=1&page_size=50`
 - 组合筛选和分页：`GET /api/goods/?ip=1&character=5&page=2&page_size=30`
+
+#### 响应示例（分组）
+
+当使用 `group_by` 参数时，返回格式如下：
+
+**按 IP 作品分组示例**：
+
+```http
+GET /api/goods/?group_by=ip
+```
+
+```json
+{
+  "group_by": "ip",
+  "total_groups": 3,
+  "total_items": 45,
+  "groups": [
+    {
+      "group_id": 1,
+      "group_name": "崩坏：星穹铁道",
+      "group_type": "ip",
+      "items": [
+        {
+          "id": "e4c1cb33-5cd3-4f94-bfc7-9de0b99f5a10",
+          "name": "流萤花火双人立牌",
+          "ip": {
+            "id": 1,
+            "name": "崩坏：星穹铁道",
+            "subject_type": 4
+          },
+          "characters": [
+            {
+              "id": 5,
+              "name": "流萤",
+              "ip": {
+                "id": 1,
+                "name": "崩坏：星穹铁道",
+                "subject_type": 4
+              },
+              "avatar": null,
+              "gender": "female"
+            }
+          ],
+          "category": {
+            "id": 2,
+            "name": "立牌"
+          },
+          "theme": null,
+          "location_path": "卧室/书桌左侧柜子/第一层",
+          "main_photo": "https://cdn.example.com/goods/main/xxx.jpg",
+          "status": "in_cabinet",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "group_id": 2,
+      "group_name": "原神",
+      "group_type": "ip",
+      "items": [...]
+    }
+  ]
+}
+```
+
+**按角色分组示例**：
+
+```http
+GET /api/goods/?group_by=character
+```
+
+```json
+{
+  "group_by": "character",
+  "total_groups": 8,
+  "total_items": 45,
+  "groups": [
+    {
+      "group_id": 5,
+      "group_name": "流萤",
+      "group_type": "character",
+      "items": [...]
+    },
+    {
+      "group_id": 6,
+      "group_name": "花火",
+      "group_type": "character",
+      "items": [...]
+    }
+  ]
+}
+```
+
+**按品类分组示例**：
+
+```http
+GET /api/goods/?group_by=category
+```
+
+```json
+{
+  "group_by": "category",
+  "total_groups": 5,
+  "total_items": 45,
+  "groups": [
+    {
+      "group_id": 2,
+      "group_name": "立牌",
+      "group_type": "category",
+      "items": [...]
+    },
+    {
+      "group_id": 3,
+      "group_name": "吧唧",
+      "group_type": "category",
+      "items": [...]
+    }
+  ]
+}
+```
+
+**按主题分组示例**：
+
+```http
+GET /api/goods/?group_by=theme
+```
+
+```json
+{
+  "group_by": "theme",
+  "total_groups": 2,
+  "total_items": 30,
+  "groups": [
+    {
+      "group_id": 1,
+      "group_name": "夏日主题",
+      "group_type": "theme",
+      "items": [...]
+    }
+  ]
+}
+```
+
+**分组响应字段说明**：
+- `group_by`：分组依据字段（ip / character / category / theme）。
+- `total_groups`：总分组数量。
+- `total_items`：总谷子数量（所有分组中的谷子总数）。
+- `groups`：分组列表（数组）。
+  - `group_id`：分组的 ID（对应 IP/角色/品类/主题的 ID）。
+  - `group_name`：分组的名称（对应 IP/角色/品类/主题的名称）。
+  - `group_type`：分组类型（ip / character / category / theme）。
+  - `items`：该分组下的谷子列表（数组），每个谷子的字段与普通列表接口相同。
+
+**注意事项**：
+- 使用 `group_by` 参数时，不支持分页（`page` 和 `page_size` 参数将被忽略）。
+- 按角色分组时，如果一个谷子关联了多个角色，该谷子会出现在多个分组中。
+- 只有具有对应字段值的谷子才会出现在分组中（例如：没有主题的谷子不会出现在按主题分组的结果中）。
+- 可以结合其他过滤参数使用，例如：`/api/goods/?ip=1&group_by=character` 表示筛选星铁的谷子并按角色分组。
 
 ---
 

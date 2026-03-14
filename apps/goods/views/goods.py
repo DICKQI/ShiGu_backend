@@ -250,6 +250,102 @@ class GoodsViewSet(viewsets.ModelViewSet):
             return qs
         return qs.filter(user=user)
 
+    def list(self, request, *args, **kwargs):
+        """
+        重写list方法以支持group_by参数进行分组显示。
+        支持按 ip（IP作品）、character（角色）、category（品类）、theme（主题）分组。
+        """
+        group_by = request.query_params.get('group_by', None)
+
+        # 如果没有group_by参数，使用默认的列表行为
+        if not group_by:
+            return super().list(request, *args, **kwargs)
+
+        # 验证group_by参数
+        valid_group_fields = ['ip', 'character', 'category', 'theme']
+        if group_by not in valid_group_fields:
+            return Response(
+                {"detail": f"Invalid group_by value. Must be one of: {', '.join(valid_group_fields)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 获取过滤后的queryset
+        queryset = self.filter_queryset(self.get_queryset())
+
+        # 根据group_by参数进行分组
+        grouped_data = {}
+
+        if group_by == 'ip':
+            # 按IP作品分组
+            for goods in queryset:
+                if goods.ip:
+                    key = goods.ip.id
+                    if key not in grouped_data:
+                        grouped_data[key] = {
+                            'group_name': goods.ip.name,
+                            'group_id': goods.ip.id,
+                            'group_type': 'ip',
+                            'items': []
+                        }
+                    serializer = self.get_serializer(goods)
+                    grouped_data[key]['items'].append(serializer.data)
+
+        elif group_by == 'character':
+            # 按角色分组（一个谷子可能属于多个角色组）
+            for goods in queryset:
+                for character in goods.characters.all():
+                    key = character.id
+                    if key not in grouped_data:
+                        grouped_data[key] = {
+                            'group_name': character.name,
+                            'group_id': character.id,
+                            'group_type': 'character',
+                            'items': []
+                        }
+                    serializer = self.get_serializer(goods)
+                    grouped_data[key]['items'].append(serializer.data)
+
+        elif group_by == 'category':
+            # 按品类分组
+            for goods in queryset:
+                if goods.category:
+                    key = goods.category.id
+                    if key not in grouped_data:
+                        grouped_data[key] = {
+                            'group_name': goods.category.name,
+                            'group_id': goods.category.id,
+                            'group_type': 'category',
+                            'items': []
+                        }
+                    serializer = self.get_serializer(goods)
+                    grouped_data[key]['items'].append(serializer.data)
+
+        elif group_by == 'theme':
+            # 按主题分组
+            for goods in queryset:
+                if goods.theme:
+                    key = goods.theme.id
+                    if key not in grouped_data:
+                        grouped_data[key] = {
+                            'group_name': goods.theme.name,
+                            'group_id': goods.theme.id,
+                            'group_type': 'theme',
+                            'items': []
+                        }
+                    serializer = self.get_serializer(goods)
+                    grouped_data[key]['items'].append(serializer.data)
+
+        # 转换为列表格式
+        result = list(grouped_data.values())
+
+        # 返回分组后的数据
+        return Response({
+            'group_by': group_by,
+            'groups': result,
+            'total_groups': len(result),
+            'total_items': queryset.count()
+        })
+
     def _find_duplicate_candidates(self, user, validated_data):
         """
         根据「用户 + IP + 名称 + 角色集合 + 入手日期 + 单价」查找可能重复的谷子，返回候选列表。
