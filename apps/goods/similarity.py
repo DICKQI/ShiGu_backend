@@ -15,20 +15,20 @@ class GoodsSimilarityCalculator:
 
     基于6个维度的加权评分：
     - IP匹配（30分）
-    - 角色重叠（25分）
-    - 品类层级（20分）
-    - 主题匹配（10分）
+    - 角色重叠（23分）
+    - 品类层级（18分）
+    - 主题匹配（15分）- 提高权重以增强视觉和谐性
     - 价格区间（8分）
-    - 入手日期接近度（7分）
+    - 入手日期接近度（6分）
     """
 
     WEIGHTS = {
         'ip_match': 30,
-        'character_overlap': 25,
-        'category_hierarchy': 20,
-        'theme_match': 10,
+        'character_overlap': 23,
+        'category_hierarchy': 18,
+        'theme_match': 15,  # 提高主题权重：10 → 15
         'price_range': 8,
-        'purchase_proximity': 7,
+        'purchase_proximity': 6,
     }
 
     def __init__(self, category_tree_cache=None):
@@ -133,8 +133,8 @@ class GoodsSimilarityCalculator:
         """
         主题匹配评分
 
-        - 相同主题：10分
-        - 都有主题但不同：2分
+        - 相同主题：15分
+        - 都有主题但不同：3分
         - 一个或两个都没有主题：0分
         """
         if a.theme_id and b.theme_id:

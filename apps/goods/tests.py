@@ -100,18 +100,18 @@ class SimilarityAlgorithmTestCase(TestCase):
 
         score = self.calculator._score_character_overlap(self.goods1, goods_both)
         # goods1有1个角色，goods_both有2个角色，共享1个
-        # (1 / 2) * 25 = 12.5
-        self.assertAlmostEqual(score, 12.5, places=1)
+        # (1 / 2) * 23 = 11.5
+        self.assertAlmostEqual(score, 11.5, places=1)
 
     def test_category_hierarchy_same_category(self):
         """测试相同品类的评分"""
         score = self.calculator._score_category_hierarchy(self.goods1, self.goods2)
-        self.assertEqual(score, 20.0)
+        self.assertEqual(score, 18.0)
 
     def test_theme_match(self):
         """测试主题匹配评分"""
         score = self.calculator._score_theme_match(self.goods1, self.goods2)
-        self.assertEqual(score, 10.0)
+        self.assertEqual(score, 15.0)
 
     def test_price_range_similar(self):
         """测试相似价格的评分"""
@@ -123,18 +123,18 @@ class SimilarityAlgorithmTestCase(TestCase):
         """测试同月入手的评分"""
         score = self.calculator._score_purchase_proximity(self.goods1, self.goods2)
         # 1月15日和1月20日，同月
-        self.assertEqual(score, 7.0)
+        self.assertEqual(score, 6.0)
 
     def test_calculate_similarity_high(self):
         """测试高相似度计算"""
         score = self.calculator.calculate_similarity(self.goods1, self.goods2)
-        # 相同IP(30) + 相同品类(20) + 相同主题(10) + 相似价格(~5) + 同月(7) = ~72
+        # 相同IP(30) + 相同品类(18) + 相同主题(15) + 相似价格(~5) + 同月(6) = ~74
         self.assertGreater(score, 60.0)
 
     def test_calculate_similarity_low(self):
         """测试低相似度计算"""
         score = self.calculator.calculate_similarity(self.goods1, self.goods3)
-        # 不同IP但同类型(10) + 相同品类(20) = 30
+        # 不同IP但同类型(10) + 相同品类(18) = 28
         self.assertLess(score, 40.0)
 
 
