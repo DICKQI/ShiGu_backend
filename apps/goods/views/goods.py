@@ -1041,6 +1041,7 @@ class GoodsViewSet(viewsets.ModelViewSet):
         查询参数：
         - 所有标准过滤器（ip, category, theme, status等）
         - seed_strategy: 种子选择策略（diverse/popular/recent，默认diverse）
+        - refresh: 设置为1时跳过缓存强制重新计算（可选）
         - page, page_size: 标准分页参数
 
         响应格式与列表接口相同。
@@ -1060,9 +1061,12 @@ class GoodsViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(goods_list, many=True)
             return Response(serializer.data)
 
-        # 2. 检查缓存中的现有排序
+        # 2. 检查是否需要跳过缓存
+        refresh = request.query_params.get('refresh') == '1'
+
+        # 3. 检查缓存中的现有排序
         cache_key = self._get_similarity_cache_key(request)
-        cached_ids = cache.get(cache_key)
+        cached_ids = None if refresh else cache.get(cache_key)
 
         if cached_ids:
             # 使用缓存的排序
@@ -1073,7 +1077,7 @@ class GoodsViewSet(viewsets.ModelViewSet):
             # 缓存ID列表（5分钟TTL）
             cache.set(cache_key, [str(g.id) for g in ordered_goods], timeout=300)
 
-        # 3. 分页并返回
+        # 4. 分页并返回
         page = self.paginate_queryset(ordered_goods)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
@@ -1084,7 +1088,7 @@ class GoodsViewSet(viewsets.ModelViewSet):
 
     def _get_similarity_cache_key(self, request):
         """
-        生成缓存键（用户ID + 过滤器哈希）
+        生成缓存键（用户ID + 过滤器哈希 + 时间窗口）
 
         Args:
             request: HTTP请求对象
@@ -1092,6 +1096,7 @@ class GoodsViewSet(viewsets.ModelViewSet):
         Returns:
             str: 缓存键
         """
+        import time
         user_id = request.user.id
         filter_params = {
             'ip': request.query_params.get('ip'),
@@ -1103,6 +1108,10 @@ class GoodsViewSet(viewsets.ModelViewSet):
         }
         # 移除None值
         filter_params = {k: v for k, v in filter_params.items() if v}
+
+        # 添加时间窗口（每2分钟一个窗口），让排序定期自动刷新
+        time_window = int(time.time() // 120)  # 120秒 = 2分钟
+        filter_params['_tw'] = time_window
         filter_hash = hashlib.md5(str(sorted(filter_params.items())).encode()).hexdigest()
         return f"similar_random:{user_id}:{filter_hash}"
 
@@ -1133,6 +1142,9 @@ class GoodsViewSet(viewsets.ModelViewSet):
 
         # 选择种子
         seeds = selector.select_seeds(goods_list, strategy=seed_strategy)
+
+        # 随机打乱种子顺序，让不同的谷子有机会出现在前面
+        random.shuffle(seeds)
 
         # 构建分组
         ordered_goods = builder.build_groups(seeds, goods_list)

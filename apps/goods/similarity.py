@@ -494,10 +494,15 @@ class SimilarityGroupBuilder:
             return goods_list
 
         result = []
+        used_ids = set()
 
         for i, good in enumerate(goods_list):
+            # 跳过已经被使用的谷子
+            if good.id in used_ids:
+                continue
+
             # 检查IP聚类（连续3个相同IP）
-            if i >= 2 and len(result) >= 2:
+            if len(result) >= 2:
                 last_2_ips = [result[-2].ip_id, result[-1].ip_id]
                 if all(ip == good.ip_id for ip in last_2_ips):
                     # 查找不同IP的谷子插入
@@ -505,13 +510,16 @@ class SimilarityGroupBuilder:
                         goods_list[i:],
                         'ip_id',
                         good.ip_id,
-                        set(g.id for g in result)
+                        used_ids
                     )
                     if different_good:
                         result.append(different_good)
+                        used_ids.add(different_good.id)
+                        # 跳过当前谷子，它会在后续循环中被处理
                         continue
 
             result.append(good)
+            used_ids.add(good.id)
 
         return result
 
