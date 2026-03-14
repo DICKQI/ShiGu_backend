@@ -254,7 +254,7 @@ class GoodsViewSet(viewsets.ModelViewSet):
         """
         重写list方法以支持group_by参数进行分组显示。
         支持按 ip（IP作品）、character（角色）、category（品类）、theme（主题）分组。
-        分组后的结果支持分页。
+        使用group_by时，返回格式与普通列表相同，只是谷子按分组字段排序并聚集在一起。
         """
         group_by = request.query_params.get('group_by', None)
 
@@ -270,91 +270,33 @@ class GoodsViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # 获取过滤后的queryset
+        # 获取过滤后的queryset，并按分组字段排序
         queryset = self.filter_queryset(self.get_queryset())
 
-        # 根据group_by参数进行分组
-        grouped_data = {}
-
+        # 根据group_by参数对queryset进行排序
         if group_by == 'ip':
-            # 按IP作品分组
-            for goods in queryset:
-                if goods.ip:
-                    key = goods.ip.id
-                    if key not in grouped_data:
-                        grouped_data[key] = {
-                            'group_name': goods.ip.name,
-                            'group_id': goods.ip.id,
-                            'group_type': 'ip',
-                            'items': []
-                        }
-                    serializer = self.get_serializer(goods)
-                    grouped_data[key]['items'].append(serializer.data)
-
+            # 按IP的id排序，使同一IP的谷子聚集在一起
+            queryset = queryset.order_by('ip__id', '-created_at')
         elif group_by == 'character':
-            # 按角色分组（一个谷子可能属于多个角色组）
-            for goods in queryset:
-                for character in goods.characters.all():
-                    key = character.id
-                    if key not in grouped_data:
-                        grouped_data[key] = {
-                            'group_name': character.name,
-                            'group_id': character.id,
-                            'group_type': 'character',
-                            'items': []
-                        }
-                    serializer = self.get_serializer(goods)
-                    grouped_data[key]['items'].append(serializer.data)
-
+            # 按角色分组比较特殊，因为是多对多关系
+            # 这里我们按第一个角色的id排序
+            queryset = queryset.order_by('characters__id', '-created_at').distinct()
         elif group_by == 'category':
-            # 按品类分组
-            for goods in queryset:
-                if goods.category:
-                    key = goods.category.id
-                    if key not in grouped_data:
-                        grouped_data[key] = {
-                            'group_name': goods.category.name,
-                            'group_id': goods.category.id,
-                            'group_type': 'category',
-                            'items': []
-                        }
-                    serializer = self.get_serializer(goods)
-                    grouped_data[key]['items'].append(serializer.data)
-
+            # 按品类的id排序
+            queryset = queryset.order_by('category__id', '-created_at')
         elif group_by == 'theme':
-            # 按主题分组
-            for goods in queryset:
-                if goods.theme:
-                    key = goods.theme.id
-                    if key not in grouped_data:
-                        grouped_data[key] = {
-                            'group_name': goods.theme.name,
-                            'group_id': goods.theme.id,
-                            'group_type': 'theme',
-                            'items': []
-                        }
-                    serializer = self.get_serializer(goods)
-                    grouped_data[key]['items'].append(serializer.data)
+            # 按主题的id排序
+            queryset = queryset.order_by('theme__id', '-created_at')
 
-        # 转换为列表格式并排序（按group_id排序保证顺序稳定）
-        groups_list = sorted(grouped_data.values(), key=lambda x: x['group_id'])
+        # 使用标准分页器对排序后的queryset进行分页
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
 
-        # 对分组列表进行分页
-        paginator = self.pagination_class()
-        paginated_groups = paginator.paginate_queryset(groups_list, request, view=self)
-
-        # 返回分页后的分组数据
-        return Response({
-            'count': len(groups_list),
-            'page': paginator.page.number,
-            'page_size': paginator.page_size,
-            'next': paginator.get_next_page_number(),
-            'previous': paginator.get_previous_page_number(),
-            'group_by': group_by,
-            'total_groups': len(groups_list),
-            'total_items': queryset.count(),
-            'groups': paginated_groups
-        })
+        # 如果没有分页，直接返回所有数据
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     def _find_duplicate_candidates(self, user, validated_data):
         """
