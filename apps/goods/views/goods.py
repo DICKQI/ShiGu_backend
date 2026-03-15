@@ -2,7 +2,7 @@
 谷子（Goods）相关的视图和过滤器
 """
 from django.db import transaction
-from django.db.models import Count, DateField, DecimalField, ExpressionWrapper, F, Min, Q, Sum, Value
+from django.db.models import Count, DateField, DecimalField, ExpressionWrapper, F, Max, Min, Q, Sum, Value
 from django.db.models.functions import Cast, Coalesce, TruncDate, TruncMonth, TruncWeek
 from django.db import connection
 from drf_spectacular.utils import OpenApiResponse, extend_schema
@@ -275,18 +275,26 @@ class GoodsViewSet(viewsets.ModelViewSet):
 
         # 根据group_by参数对queryset进行排序
         if group_by == 'ip':
-            # 按IP的id排序，使同一IP的谷子聚集在一起
-            queryset = queryset.order_by('ip__id', '-created_at')
+            # 按IP下最新谷子的时间倒序，使最近有新谷子的IP排在前面
+            queryset = queryset.annotate(
+                ip_latest=Max('ip__goods__created_at')
+            ).order_by('-ip_latest', '-created_at')
         elif group_by == 'character':
             # 按角色分组比较特殊，因为是多对多关系
-            # 这里我们按第一个角色的id排序
-            queryset = queryset.order_by('characters__id', '-created_at').distinct()
+            # 按角色下最新谷子的时间倒序
+            queryset = queryset.annotate(
+                character_latest=Max('characters__goods__created_at')
+            ).order_by('-character_latest', '-created_at').distinct()
         elif group_by == 'category':
-            # 按品类的id排序
-            queryset = queryset.order_by('category__id', '-created_at')
+            # 按品类下最新谷子的时间倒序
+            queryset = queryset.annotate(
+                category_latest=Max('category__goods__created_at')
+            ).order_by('-category_latest', '-created_at')
         elif group_by == 'theme':
-            # 按主题的id排序
-            queryset = queryset.order_by('theme__id', '-created_at')
+            # 按主题下最新谷子的时间倒序，使最近有新谷子的主题排在前面
+            queryset = queryset.annotate(
+                theme_latest=Max('theme__goods__created_at')
+            ).order_by('-theme_latest', '-created_at')
 
         # 使用标准分页器对排序后的queryset进行分页
         page = self.paginate_queryset(queryset)
