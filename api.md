@@ -850,6 +850,7 @@ GET /api/location/nodes/2/goods/?include_children=true
 
 **数据字段说明**：
 - `id`：谷子 UUID，后续详情/编辑都用此 ID。
+- `user`：谷子所属用户（对象，包含 `id` 和 `username`）。
 - `ip` / `characters` / `category`：已展开为简单对象，避免前端再二次请求。`characters` 为数组，可包含多个角色。
 - `location_path`：人类可读的完整路径（前端直接展示即可）。
 - `main_photo`：主图 URL，可直接用作列表缩略图（后续可以替换为缩略图 URL）。
@@ -883,6 +884,10 @@ GET /api/goods/?group_by=ip&page=1&page_size=20
     {
       "id": "e4c1cb33-5cd3-4f94-bfc7-9de0b99f5a10",
       "name": "流萤花火双人立牌",
+      "user": {
+        "id": 1,
+        "username": "test1"
+      },
       "ip": {
         "id": 1,
         "name": "崩坏：星穹铁道",
@@ -987,6 +992,10 @@ GET /api/goods/?group_by=theme&page=1&page_size=20
 {
   "id": "e4c1cb33-5cd3-4f94-bfc7-9de0b99f5a10",
   "name": "流萤花火双人立牌",
+  "user": {
+    "id": 1,
+    "username": "test1"
+  },
   "ip": {
     "id": 1,
     "name": "崩坏：星穹铁道",
@@ -3665,6 +3674,10 @@ cover_image: <file>
     "goods": {
       "id": "e4c1cb33-5cd3-4f94-bfc7-9de0b99f5a10",
       "name": "流萤花火双人立牌",
+      "user": {
+        "id": 1,
+        "username": "test1"
+      },
       "ip": {
         "id": 1,
         "name": "崩坏：星穹铁道",

@@ -84,12 +84,15 @@ class GoodsListSerializer(serializers.ModelSerializer):
     category = CategorySimpleSerializer(read_only=True)
     theme = ThemeSimpleSerializer(read_only=True)
     location_path = serializers.SerializerMethodField()
+    # 列表页新增：所属用户（只返回必要信息）
+    user = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Goods
         fields = (
             "id",
             "name",
+            "user",
             "ip",
             "characters",
             "category",
@@ -101,6 +104,15 @@ class GoodsListSerializer(serializers.ModelSerializer):
             "is_official",
             "order",  # 自定义排序值
         )
+
+    def get_user(self, obj):
+        user = getattr(obj, "user", None)
+        if not user:
+            return None
+        return {
+            "id": user.id,
+            "username": getattr(user, "username", None),
+        }
 
     def get_location_path(self, obj):
         if obj.location:
@@ -172,6 +184,8 @@ class GoodsDetailSerializer(serializers.ModelSerializer):
         required=False,
         help_text="仅管理员：指定谷子归属用户；省略则归属当前登录用户",
     )
+    # 详情页新增：返回所属用户对象（仅用于展示）
+    user = serializers.SerializerMethodField(read_only=True)
     location_path = serializers.SerializerMethodField()
     additional_photos = GuziImageSerializer(many=True, read_only=True)
 
@@ -180,6 +194,7 @@ class GoodsDetailSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "name",
+            "user",
             "ip_id",
             "ip",
             "character_ids",
@@ -224,6 +239,15 @@ class GoodsDetailSerializer(serializers.ModelSerializer):
         if not request or not is_admin(request.user):
             raise serializers.ValidationError("仅管理员可指定 user_id")
         return value
+
+    def get_user(self, obj):
+        user = getattr(obj, "user", None)
+        if not user:
+            return None
+        return {
+            "id": user.id,
+            "username": getattr(user, "username", None),
+        }
 
     def get_location_path(self, obj):
         if obj.location:

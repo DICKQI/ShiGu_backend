@@ -204,7 +204,7 @@ class GoodsViewSet(viewsets.ModelViewSet):
 
     queryset = (
         Goods.objects.all()
-        .select_related("ip", "category", "location", "theme")
+        .select_related("ip", "category", "location", "theme", "user")
         .prefetch_related("characters__ip", "additional_photos")
     )
     permission_classes = [IsOwnerOnly]
@@ -251,7 +251,7 @@ class GoodsViewSet(viewsets.ModelViewSet):
         """
         qs = (
             Goods.objects.all()
-            .select_related("ip", "category", "location", "theme")
+            .select_related("ip", "category", "location", "theme", "user")
             .prefetch_related("characters__ip", "additional_photos")
         )
         user = getattr(self.request, "user", None)
