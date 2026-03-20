@@ -3,6 +3,7 @@
 """
 from rest_framework import serializers
 
+from apps.users.models import User as UserModel
 from ..models import Category, Character, Goods, GuziImage, IP, Theme
 from apps.location.models import StorageNode
 from core.permissions import is_admin
@@ -165,6 +166,12 @@ class GoodsDetailSerializer(serializers.ModelSerializer):
         allow_null=True,
         help_text="merge_strategy=merge 且候选多于一条时必填，指定要合并到的目标谷子ID",
     )
+    user_id = serializers.PrimaryKeyRelatedField(
+        queryset=UserModel.objects.all(),
+        write_only=True,
+        required=False,
+        help_text="仅管理员：指定谷子归属用户；省略则归属当前登录用户",
+    )
     location_path = serializers.SerializerMethodField()
     additional_photos = GuziImageSerializer(many=True, read_only=True)
 
@@ -185,6 +192,7 @@ class GoodsDetailSerializer(serializers.ModelSerializer):
             "location",
             "merge_strategy",
             "merge_target_id",
+            "user_id",
             "main_photo",
             "quantity",
             "price",
@@ -210,6 +218,12 @@ class GoodsDetailSerializer(serializers.ModelSerializer):
         # 私有外键只允许指向当前用户的数据，避免越权关联
         self.fields["theme_id"].queryset = Theme.objects.filter(user=user)
         self.fields["location"].queryset = StorageNode.objects.filter(user=user)
+
+    def validate_user_id(self, value):
+        request = self.context.get("request")
+        if not request or not is_admin(request.user):
+            raise serializers.ValidationError("仅管理员可指定 user_id")
+        return value
 
     def get_location_path(self, obj):
         if obj.location:
@@ -245,6 +259,7 @@ class GoodsDetailSerializer(serializers.ModelSerializer):
         # 移除仅用于视图控制的字段，不写入模型
         validated_data.pop("merge_strategy", None)
         validated_data.pop("merge_target_id", None)
+        validated_data.pop("user_id", None)
         # 提取多对多关系数据
         characters = validated_data.pop("characters", [])
         

@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "apps.goods.apps.GoodsConfig",
     "apps.location.apps.LocationConfig",
     "apps.users.apps.UsersConfig",
+    "apps.admin_api.apps.AdminApiConfig",
 ]
 
 MIDDLEWARE = [

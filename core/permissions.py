@@ -9,6 +9,19 @@ def is_admin(user) -> bool:
     return str(role_name).lower() == "admin"
 
 
+class IsAdmin(BasePermission):
+    """
+    所有 HTTP 方法均要求当前用户为管理员（与 IsAdminOrReadOnly 不同）。
+    建议与 IsAuthenticated 同时使用：未登录由前者返回 401。
+    """
+
+    def has_permission(self, request, view) -> bool:
+        user = getattr(request, "user", None)
+        if user is None or not getattr(user, "is_authenticated", False):
+            return False
+        return is_admin(user)
+
+
 class IsAdminOrReadOnly(BasePermission):
     """
     SAFE: allowed for authenticated users (subject to view's other permissions).

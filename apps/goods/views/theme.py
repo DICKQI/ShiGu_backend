@@ -34,6 +34,7 @@ class ThemeViewSet(viewsets.ModelViewSet):
     search_fields = ("name", "description")
     filterset_fields = {
         "name": ["exact", "icontains"],
+        "user": ["exact"],
     }
     parser_classes = (MultiPartParser, FormParser, JSONParser)
     permission_classes = [IsOwnerOnly]
@@ -61,7 +62,11 @@ class ThemeViewSet(viewsets.ModelViewSet):
         return ThemeSimpleSerializer
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        user = self.request.user
+        uid = serializer.validated_data.get("user_id")
+        if uid is not None and is_admin(self.request.user):
+            user = uid
+        serializer.save(user=user)
 
     @action(
         detail=True,

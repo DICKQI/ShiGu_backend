@@ -92,6 +92,7 @@ class GoodsPagination(PageNumberPagination):
 class GoodsFilter(FilterSet):
     """谷子过滤集，正确处理多对多字段characters"""
     
+    user = NumberFilter(field_name="user", lookup_expr="exact")
     ip = NumberFilter(field_name="ip", lookup_expr="exact")
     # 树形品类筛选：?category=2 （筛选该品类及其所有子品类下的谷子）
     category = NumberFilter(method="filter_category_tree")
@@ -112,7 +113,17 @@ class GoodsFilter(FilterSet):
     
     class Meta:
         model = Goods
-        fields = ["ip", "category", "location", "theme", "status", "status__in", "is_official", "character"]
+        fields = [
+            "user",
+            "ip",
+            "category",
+            "location",
+            "theme",
+            "status",
+            "status__in",
+            "is_official",
+            "character",
+        ]
 
     def _get_category_descendant_ids(self, category: Category) -> list[int]:
         """
@@ -373,13 +384,13 @@ class GoodsViewSet(viewsets.ModelViewSet):
         validated = serializer.validated_data
         merge_strategy = validated.get("merge_strategy", "auto")
         merge_target_id = validated.get("merge_target_id")
-        user = request.user
+        self._create_owner = self._resolve_goods_owner(request, validated)
 
         if merge_strategy == "new":
             self.perform_create(serializer)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-        candidates = self._find_duplicate_candidates(user, validated)
+        candidates = self._find_duplicate_candidates(self._create_owner, validated)
 
         if merge_strategy == "auto" and candidates:
             candidate_serializer = GoodsDuplicateCandidateSerializer(
@@ -429,18 +440,25 @@ class GoodsViewSet(viewsets.ModelViewSet):
         self.perform_create(serializer)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    def _resolve_goods_owner(self, request, validated):
+        """新建谷子时的归属用户：管理员可传 user_id，否则为当前登录用户。"""
+        u = validated.get("user_id")
+        if u is not None and is_admin(request.user):
+            return u
+        return request.user
+
     def perform_create(self, serializer):
         """
         仅负责新建时的 order 分配与保存，去重与合并逻辑已移至 create()。
         """
-        user = self.request.user
+        owner = getattr(self, "_create_owner", self.request.user)
         min_order = (
-            Goods.objects.filter(user=user)
+            Goods.objects.filter(user=owner)
             .aggregate(min_order=Min("order"))
             .get("min_order")
         )
         next_order = (min_order or 0) - self.ORDER_STEP
-        serializer.save(user=user, order=next_order)
+        serializer.save(user=owner, order=next_order)
 
     @action(detail=True, methods=["post"], url_path="move")
     def move(self, request, pk=None):
