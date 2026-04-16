@@ -112,7 +112,7 @@
 | `price`        | Decimal(10,2，可空)          | 购入单价                                                             |
 | `purchase_date`| Date，可空                   | 入手日期                                                             |
 | `is_official`  | Boolean                      | 是否官谷，默认 `true`                                               |
-| `status`       | Char(20)                     | 状态：`in_cabinet`(在馆)、`outdoor`(出街中)、`sold`(已售出)        |
+| `status`       | Char(20)                     | 状态：`draft`(草稿)、`in_cabinet`(在馆)、`outdoor`(出街中)、`sold`(已售出)        |
 | `notes`        | Text，可空                   | 备注，如：瑕疵说明、购入渠道等                                      |
 | `created_at`   | DateTime                     | 创建时间                                                             |
 | `updated_at`   | DateTime                     | 更新时间                                                             |
@@ -704,7 +704,7 @@ GET /api/location/nodes/2/goods/?include_children=true
 | `character`   | int    | 单个角色 ID，精确过滤，例如 `?character=5`。匹配包含该角色的谷子                             |
 | `category`    | int    | **品类树筛选**：传入任意层级品类 ID，匹配该品类及其所有子品类下的谷子。例如：<br>- 选择"吧唧"（ID=2）可筛选出"58mm吧唧"和"75mm吧唧"等所有子品类下的谷子<br>- 选择"58mm吧唧"（ID=5）只筛选出该品类下的谷子 |
 | `theme`       | int    | 主题 ID，精确过滤，例如 `/api/goods/?theme=1`                                               |
-| `status`      | string | 单状态过滤：`in_cabinet` / `outdoor` / `sold`                                               |
+| `status`      | string | 单状态过滤：`draft` / `in_cabinet` / `outdoor` / `sold`                                     |
 | `status__in`  | string | **多状态过滤**：逗号分隔的状态列表，如：`in_cabinet,sold`                                   |
 | `is_official` | bool   | 是否官谷筛选：`true`=只看官谷，`false`=只看非官谷。不传则不过滤                               |
 | `location`    | int    | 位置节点 ID，过滤收纳在某一具体节点下的谷子                                                 |
@@ -1104,6 +1104,11 @@ GET /api/goods/?group_by=theme&page=1&page_size=20
 说明：
 - `character_ids`：角色ID数组，可包含多个角色，例如 `[5, 6]` 表示同时关联流萤（ID: 5）和花火（ID: 6）。
 - `theme_id`：主题ID（可选），例如 `1` 表示"夏日主题"。不传或传 `null` 表示不关联主题。
+- `status`：支持 `draft` 草稿保存。传 `status=draft` 时：
+  - 创建时可暂不传 `character_ids`（`ip_id` 与 `category_id` 仍必填）。
+  - 不触发重复检测与 409 冲突流程，直接保存。
+  - 返回体会包含 `saved_as_draft: true`。
+  - 后续可通过 `PATCH /api/goods/{id}/` 补齐字段并把 `status` 改为非 `draft`（发布）；发布时会执行正式必填校验。
 - **`merge_strategy`**（可选，默认 `"auto"`）：
   - `auto`：检测到可能重复时返回 **409 Conflict**，body 含 `code: "goods_duplicate"` 与 `candidates` 列表；前端可弹窗让用户选择「合并到该条」或「仍然新建」。
   - `new`：不检测重复，始终新建一条，返回 201。
@@ -1113,6 +1118,7 @@ GET /api/goods/?group_by=theme&page=1&page_size=20
 
 **响应**：
 - **201 Created**：新建成功，返回完整详情（同 4.2）。
+- **201 Created + `saved_as_draft=true`**：草稿保存成功（当 `status=draft`）。
 - **200 OK**：合并成功（仅当 `merge_strategy=merge` 且命中候选时），body 含 `merged: true` 及合并后的谷子详情。
 - **409 Conflict**：检测到可能重复且 `merge_strategy=auto`，body 示例：
   ```json
@@ -1391,7 +1397,7 @@ DELETE /api/goods/abc123/additional-photos/?photo_ids=10,11,12
 | `character`   | int    | 单个角色 ID，匹配包含该角色的谷子                                                             |
 | `category`    | int    | 树形品类筛选：传任意层级品类 ID，自动包含其所有子品类                                        |
 | `theme`       | int    | 主题 ID，精确过滤                                                                             |
-| `status`      | string | 单状态过滤：`in_cabinet` / `outdoor` / `sold`                                               |
+| `status`      | string | 单状态过滤：`draft` / `in_cabinet` / `outdoor` / `sold`                                     |
 | `status__in`  | string | 多状态过滤，逗号分隔，如：`in_cabinet,sold`                                                 |
 | `is_official` | bool   | 是否官谷：`true`=只看官谷，`false`=只看非官谷                                                 |
 | `location`    | int    | 位置节点 ID，过滤收纳在某一具体节点下的谷子                                                 |
@@ -1509,7 +1515,7 @@ DELETE /api/goods/abc123/additional-photos/?photo_ids=10,11,12
 | `character`   | int    | 单个角色 ID，匹配**包含该角色**的所有谷子                                                     |
 | `category`    | int    | 树形品类筛选：传任意层级品类 ID，自动包含其所有子品类                                        |
 | `theme`       | int    | 主题 ID                                                                                       |
-| `status`      | string | 单状态过滤：`in_cabinet` / `outdoor` / `sold`                                               |
+| `status`      | string | 单状态过滤：`draft` / `in_cabinet` / `outdoor` / `sold`                                     |
 | `status__in`  | string | 多状态过滤，逗号分隔，如：`in_cabinet,sold`                                                 |
 | `is_official` | bool   | 是否官谷：`true`=只看官谷，`false`=只看非官谷                                                 |
 | `location`    | int    | 树形位置筛选：节点 ID，自动包含该节点及其所有子节点                                          |

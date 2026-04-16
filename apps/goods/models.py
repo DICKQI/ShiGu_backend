@@ -357,6 +357,7 @@ class Goods(models.Model):
     )
 
     STATUS_CHOICES = (
+        ("draft", "草稿"),
         ("in_cabinet", "在馆"),
         ("outdoor", "出街中"),
         ("sold", "已售出"),

@@ -14,6 +14,15 @@ from .ip import IPSimpleSerializer
 from .theme import ThemeSimpleSerializer
 
 
+def _is_draft_status(value):
+    if value is None:
+        return False
+    try:
+        return str(value).lower() == "draft"
+    except Exception:
+        return False
+
+
 class GuziImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = GuziImage
@@ -258,23 +267,56 @@ class GoodsDetailSerializer(serializers.ModelSerializer):
         """
         保证创建时必填外键，更新时允许部分字段缺省。
         """
+        current_status = getattr(self.instance, "status", None) if self.instance else None
+        incoming_status = attrs.get("status", current_status)
+        is_draft = _is_draft_status(incoming_status)
+
+        required_fields = {
+            "ip": "ip_id",
+            "characters": "character_ids",
+            "category": "category_id",
+        }
+
         if self.instance is None:
-            required_fields = {
-                "ip": "ip_id",
-                "characters": "character_ids",
-                "category": "category_id",
-            }
-            missing = [
-                alias for key, alias in required_fields.items() if key not in attrs
-            ]
+            missing = [alias for key, alias in required_fields.items() if key not in attrs]
+            if is_draft:
+                # 模型层约束：ip/category 非空，草稿仅放宽角色要求
+                missing = [item for item in missing if item != "character_ids"]
             if missing:
                 raise serializers.ValidationError(
                     {field: "创建时必填" for field in missing}
                 )
-            # 验证角色列表不为空
-            if "characters" in attrs and not attrs["characters"]:
+            if not is_draft:
+                # 非草稿创建时，角色必填且不能为空
+                if "characters" in attrs and not attrs["characters"]:
+                    raise serializers.ValidationError(
+                        {"character_ids": "至少需要关联一个角色"}
+                    )
+            elif "characters" in attrs and attrs["characters"] == []:
+                # 草稿允许不传角色，但如果显式传空数组，统一为可接受
+                return attrs
+            return attrs
+
+        # 更新场景：若从草稿发布为非草稿，必须满足正式发布必填
+        if not is_draft:
+            missing = []
+            if "ip" not in attrs and getattr(self.instance, "ip_id", None) is None:
+                missing.append("ip_id")
+            if (
+                "category" not in attrs
+                and getattr(self.instance, "category_id", None) is None
+            ):
+                missing.append("category_id")
+            if "characters" in attrs:
+                if not attrs["characters"]:
+                    raise serializers.ValidationError(
+                        {"character_ids": "至少需要关联一个角色"}
+                    )
+            elif self.instance.characters.count() == 0:
+                missing.append("character_ids")
+            if missing:
                 raise serializers.ValidationError(
-                    {"character_ids": "至少需要关联一个角色"}
+                    {field: "发布时必填" for field in missing}
                 )
         return attrs
 

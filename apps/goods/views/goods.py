@@ -42,6 +42,15 @@ from ..similarity import GoodsSimilarityCalculator, SeedSelector, SimilarityGrou
 from core.permissions import IsOwnerOnly, is_admin
 
 
+def _is_draft_status(value):
+    if value is None:
+        return False
+    try:
+        return str(value).lower() == "draft"
+    except Exception:
+        return False
+
+
 class GoodsPagination(PageNumberPagination):
     """
     谷子列表分页类
@@ -384,7 +393,15 @@ class GoodsViewSet(viewsets.ModelViewSet):
         validated = serializer.validated_data
         merge_strategy = validated.get("merge_strategy", "auto")
         merge_target_id = validated.get("merge_target_id")
+        is_draft = _is_draft_status(validated.get("status"))
         self._create_owner = self._resolve_goods_owner(request, validated)
+
+        if is_draft:
+            self.perform_create(serializer)
+            return Response(
+                {"saved_as_draft": True, **serializer.data},
+                status=status.HTTP_201_CREATED,
+            )
 
         if merge_strategy == "new":
             self.perform_create(serializer)

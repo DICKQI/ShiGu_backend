@@ -255,3 +255,101 @@ class SimilarRandomEndpointTestCase(TestCase):
             response = self.client.get(f'/api/goods/similar-random/?seed_strategy={strategy}')
             self.assertIn(response.status_code, [status.HTTP_200_OK, status.HTTP_404_NOT_FOUND])
 
+
+class GoodsDraftFlowTestCase(TestCase):
+    """测试谷子草稿保存与发布流程"""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.role = Role.objects.create(name='测试角色')
+        self.user = User.objects.create(
+            username='draft_user',
+            password='testpass123',
+            role=self.role
+        )
+        self.client.force_authenticate(user=self.user)
+
+        self.ip = IP.objects.create(name='草稿测试IP', subject_type=4)
+        self.category = Category.objects.create(name='草稿测试品类')
+        self.character = Character.objects.create(
+            ip=self.ip,
+            name='草稿测试角色',
+            gender='female'
+        )
+
+    def test_create_draft_with_missing_required_fields(self):
+        """草稿可缺省角色字段，但需满足模型非空外键约束"""
+        payload = {
+            "name": "草稿谷子A",
+            "status": "draft",
+            "ip_id": self.ip.id,
+            "category_id": self.category.id,
+            "quantity": 1,
+        }
+        response = self.client.post('/api/goods/', payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        data = response.json()
+        self.assertTrue(data.get("saved_as_draft"))
+        self.assertEqual(data.get("status"), "draft")
+
+    def test_create_non_draft_requires_required_fields(self):
+        """非草稿创建保持原有必填校验"""
+        payload = {
+            "name": "正式谷子A",
+            "status": "in_cabinet",
+            "quantity": 1,
+        }
+        response = self.client.post('/api/goods/', payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        data = response.json()
+        self.assertIn("ip_id", data)
+        self.assertIn("character_ids", data)
+        self.assertIn("category_id", data)
+
+    def test_create_draft_skips_duplicate_conflict(self):
+        """草稿创建不触发重复检测冲突"""
+        goods = Goods.objects.create(
+            user=self.user,
+            name='重复测试谷子',
+            ip=self.ip,
+            category=self.category,
+            price=Decimal('66.00'),
+            purchase_date=date(2025, 1, 1)
+        )
+        goods.characters.add(self.character)
+
+        payload = {
+            "name": "重复测试谷子",
+            "status": "draft",
+            "ip_id": self.ip.id,
+            "category_id": self.category.id,
+            "character_ids": [self.character.id],
+            "price": "66.00",
+            "purchase_date": "2025-01-01",
+            "merge_strategy": "auto",
+        }
+        response = self.client.post('/api/goods/', payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(response.json().get("saved_as_draft"))
+
+    def test_publish_draft_requires_required_fields(self):
+        """草稿发布为非草稿时执行正式必填校验"""
+        draft = Goods.objects.create(
+            user=self.user,
+            name='待发布草稿',
+            ip=self.ip,
+            category=self.category,
+            status='draft',
+        )
+        # 让该草稿处于不完整状态（无角色）
+        draft.characters.clear()
+
+        response = self.client.patch(
+            f'/api/goods/{draft.id}/',
+            {"status": "in_cabinet"},
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        data = response.json()
+        self.assertIn("character_ids", data)
+
